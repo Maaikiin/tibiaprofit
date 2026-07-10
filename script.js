@@ -294,6 +294,7 @@ function atualizarTabelaDrops() {
     const corpo = document.getElementById('corpoDrops');
     if (!corpo) return;
     corpo.innerHTML = '';
+    
     [...todosOsDrops].reverse().forEach(drop => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -301,6 +302,9 @@ function atualizarTabelaDrops() {
             <td>${drop.mes}</td>
             <td>${drop.item}</td>
             <td style="color: #e2b45c; font-weight: bold;">+${parseFloat(drop.valor).toFixed(2)} kk</td>
+            <td>
+                <button onclick="removerDrop('${drop.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
+            </td>
         `;
         corpo.appendChild(tr);
     });
@@ -310,13 +314,16 @@ function atualizarTabelaCompras() {
     const corpo = document.getElementById('corpoCompras');
     if (!corpo) return;
     corpo.innerHTML = '';
+    
     [...todasAsCompras].reverse().forEach(compra => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${compra.data}</td>
-            <td>${compra.mes}</td>
             <td>${compra.item}</td>
-            <td style="color: #ff3333; font-weight: bold;">-${parseFloat(compra.valor).toFixed(2)} kk</td>
+            <td style="color: #ef4444; font-weight: bold;">-${parseFloat(compra.valor).toFixed(2)} kk</td>
+            <td>
+                <button onclick="removerCompra('${compra.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
+            </td>
         `;
         corpo.appendChild(tr);
     });
@@ -341,6 +348,7 @@ function atualizarResumoMensalETotais() {
         resumoMensalEstrutura[m] = { profitTotal: 0, xpTotal: 0 };
     });
 
+    // 1. Soma Hunts
     todasAsHunts.forEach(hunt => {
         const p = parseFloat(hunt.profitReal || 0);
         const x = parseFloat(hunt.xpGanha || 0);
@@ -352,6 +360,7 @@ function atualizarResumoMensalETotais() {
         }
     });
 
+    // 2. Soma Drops
     todosOsDrops.forEach(drop => {
         const v = parseFloat(drop.valor || 0);
         totalDropsAnual += v;
@@ -361,15 +370,21 @@ function atualizarResumoMensalETotais() {
         }
     });
 
+    // 3. SUBTRAI COMPRAS (A parte que estava errada)
     todasAsCompras.forEach(compra => {
         const v = parseFloat(compra.valor || 0);
         totalComprasAnual += v;
+        
+        // Subtraímos do total anual
         totalProfitAnual -= v;
+        
+        // Subtraímos do mês correspondente
         if (resumoMensalEstrutura[compra.mes]) {
             resumoMensalEstrutura[compra.mes].profitTotal -= v;
         }
     });
 
+    // Atualiza elementos de texto
     if (document.getElementById('totalProfit')) document.getElementById('totalProfit').innerText = `${totalProfitAnual.toFixed(2)} kk`;
     if (document.getElementById('totalXP')) document.getElementById('totalXP').innerText = `${totalXpAnual.toFixed(2)} kk`;
     if (document.getElementById('totalDropsValue')) document.getElementById('totalDropsValue').innerText = `${totalDropsAnual.toFixed(2)} kk`;
@@ -430,22 +445,29 @@ function renderizarGraficosDinamicos(dadosAgrupados, mesesRotulos) {
             datasets: [{
                 label: 'Profit Líquido Mensal (kk)',
                 data: dadosLucro,
-                backgroundColor: 'rgba(0, 255, 102, 0.25)',
-                borderColor: '#00ff66',
+                // A LÓGICA DE CORES ESTÁ AQUI:
+                backgroundColor: dadosLucro.map(v => v >= 0 ? 'rgba(0, 255, 102, 0.25)' : 'rgba(255, 51, 51, 0.25)'),
+                borderColor: dadosLucro.map(v => v >= 0 ? '#00ff66' : '#ff3333'),
                 borderWidth: 2
             }]
         },
         options: { 
             responsive: true, 
             maintainAspectRatio: false, 
-            layout: { padding: { top: 25 } }, // Dá espaço para o rótulo não cortar
-            scales: { y: { beginAtZero: true } },
+            layout: { padding: { top: 25 } },
+            scales: { 
+                y: { 
+                    beginAtZero: true,
+                    // Garante que o zero fique alinhado mesmo com negativos
+                    suggestedMin: Math.min(...dadosLucro, 0) 
+                } 
+            },
             plugins: {
                 datalabels: {
                     display: true,
-                    align: 'top',
+                    align: (context) => context.dataset.data[context.dataIndex] >= 0 ? 'top' : 'bottom',
                     anchor: 'end',
-                    color: '#00ff66',
+                    color: (context) => context.dataset.data[context.dataIndex] >= 0 ? '#00ff66' : '#ff3333',
                     fontWeight: 'bold',
                     formatter: (value) => value !== 0 ? value.toFixed(2) + ' kk' : ''
                 }
@@ -618,6 +640,28 @@ function removerHunt(huntId) {
         database.ref(`users/${usuarioAtualUid}/hunts/${huntId}`).remove()
             .then(() => {
                 alert("Hunt removida com sucesso!");
+            })
+            .catch((erro) => {
+                alert("Erro ao remover: " + erro.message);
+            });
+    }
+}
+function removerDrop(dropId) {
+    if (confirm("Tem certeza que deseja apagar este drop raro?")) {
+        database.ref(`users/${usuarioAtualUid}/drops/${dropId}`).remove()
+            .then(() => {
+                alert("Drop removido com sucesso!");
+            })
+            .catch((erro) => {
+                alert("Erro ao remover: " + erro.message);
+            });
+    }
+}
+function removerCompra(compraId) {
+    if (confirm("Tem certeza que deseja apagar este gasto/compra?")) {
+        database.ref(`users/${usuarioAtualUid}/compras/${compraId}`).remove()
+            .then(() => {
+                alert("Gasto removido com sucesso!");
             })
             .catch((erro) => {
                 alert("Erro ao remover: " + erro.message);
