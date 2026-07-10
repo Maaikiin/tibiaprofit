@@ -1,0 +1,411 @@
+/* ==========================================================================
+   CONFIGURAÇÕES GERAIS & RESETS
+   ========================================================================== */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: #0a0a0c;
+    color: #e2e8f0;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+}
+
+/* ==========================================================================
+   TELA DE LOGIN
+   ========================================================================== */
+.login-body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #0f0d0b;
+    background-image: 
+        radial-gradient(circle at 50% 50%, transparent 40%, rgba(0,0,0,0.8) 100%),
+        linear-gradient(45deg, #161310 25%, transparent 25%), 
+        linear-gradient(-45deg, #161310 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #161310 75%), 
+        linear-gradient(-45deg, transparent 75%, #161310 75%);
+    background-size: 100% 100%, 30px 30px, 30px 30px, 30px 30px, 30px 30px;
+    font-family: "Georgia", serif;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+}
+
+.tibia-logo-header {
+    width: 100%;
+    text-align: center;
+    margin-bottom: -15px;
+    z-index: 10;
+}
+
+.tibia-logo-img {
+    width: 100%;
+    max-width: 520px;
+    height: auto;
+    filter: drop-shadow(0px 8px 12px rgba(0,0,0,0.7));
+}
+
+.scroll-container {
+    position: relative;
+    width: 100%;
+    min-height: 420px;
+    background-image: url('pergaminho.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0px 15px 25px rgba(0,0,0,0.8));
+}
+
+.scroll-content {
+    width: 100%;
+    padding: 40px 145px;
+}
+
+.scroll-input-group {
+    margin-bottom: 16px;
+}
+
+.scroll-input-group label {
+    display: block;
+    color: #2c1a0c;
+    font-size: 0.95rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+    letter-spacing: 0.5px;
+}
+
+.scroll-input-group input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.05);
+    border: none;
+    border-bottom: 2px solid #6b4a31;
+    color: #1a0f07;
+    font-family: "Georgia", serif;
+    padding: 6px 4px;
+    font-size: 1rem;
+    outline: none;
+}
+
+.scroll-buttons-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 22px;
+    align-items: center;
+}
+
+.scroll-btn {
+    width: 100%;
+    background: #5c3e26;
+    border: 1px solid #3b2311;
+    color: #f5eae0;
+    font-family: "Georgia", serif;
+    font-size: 0.9rem;
+    font-weight: bold;
+    padding: 10px 5px;
+    cursor: pointer;
+}
+
+.scroll-error-msg {
+    color: #9c2b0c;
+    font-size: 0.85rem;
+    text-align: center;
+    margin-top: 15px;
+    font-weight: bold;
+}
+
+/* ==========================================================================
+   ESTILO DA TELA DO DASHBOARD
+   ========================================================================== */
+.dashboard-body {
+    background-color: #060608;
+    color: #f1f5f9;
+    padding: 30px 15px;
+}
+
+.dashboard-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: #0f1115;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
+}
+
+.dash-title {
+    font-family: 'Cinzel', 'Georgia', serif;
+    font-size: 2.2rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: none;
+    display: flex;
+    gap: 10px;
+}
+
+/* Texto 'Tibia' em Branco Puro */
+.tibia-text {
+    color: #ffffff;
+    font-weight: 800;
+    filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.8));
+}
+
+/* Texto 'Profit' em Verde Neon Vibrante */
+.profit-text {
+    color: #00ff66;
+    font-weight: 800;
+    text-shadow: 0 0 10px rgba(0, 255, 102, 0.6);
+    filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.8));
+}
+
+/* Cards de Resumo */
+.cards-resumo {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+
+.card {
+    flex: 1;
+    min-width: 220px;
+    background: #15181f;
+    border: 1px solid #222530;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, border-color 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    border-color: #00ff66;
+}
+
+.card h3 {
+    color: #94a3b8;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+}
+
+.card p {
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+#totalProfit { 
+    color: #00ff66 !important; 
+    text-shadow: 0 0 10px rgba(0, 255, 102, 0.2);
+}
+#totalXP { 
+    color: #ffffff !important; 
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
+}
+#totalDropsValue { 
+    color: #cbd5e1 !important; 
+}
+#totalComprasValue { 
+    color: #94a3b8 !important; 
+}
+
+/* Abas de Navegação */
+.tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 25px;
+    border-bottom: 1px solid #1e293b;
+    padding-bottom: 2px;
+}
+
+.tab-btn {
+    background: transparent;
+    color: #94a3b8;
+    border: none;
+    padding: 12px 20px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    border-radius: 6px 6px 0 0;
+}
+
+.tab-btn:hover {
+    color: #ffffff;
+    background: #15181f;
+}
+
+.tab-btn.active {
+    background: #1e293b;
+    color: #00ff66;
+    border-bottom: 2px solid #00ff66;
+}
+
+/* Controle de Abas */
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Formulários e Inputs */
+.grid-inputs {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.input-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.input-box label {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+textarea, input, select {
+    background: #0a0b0d;
+    border: 1px solid #222530;
+    border-radius: 6px;
+    color: #ffffff;
+    padding: 12px;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+textarea:focus, input:focus, select:focus {
+    border-color: #00ff66;
+    box-shadow: 0 0 8px rgba(0, 255, 102, 0.15);
+}
+
+textarea {
+    min-height: 110px;
+}
+
+/* Botões */
+.dash-btn {
+    background: #ffffff;
+    color: #000000;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 24px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.dash-btn:hover {
+    background: #00ff66;
+    color: #000000;
+    box-shadow: 0 0 15px rgba(0, 255, 102, 0.4);
+}
+
+#btnCalcular {
+    background: #00ff66;
+    color: #000000;
+}
+
+#btnCalcular:hover {
+    background: #ffffff;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+}
+
+.btn-sair {
+    background: rgba(255, 51, 102, 0.1);
+    color: #ff3366;
+    border: 1px solid rgba(255, 51, 102, 0.2);
+}
+
+.btn-sair:hover {
+    background: #ff3366;
+    color: #ffffff;
+    box-shadow: 0 0 15px rgba(255, 51, 102, 0.3);
+}
+
+/* Tabelas */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background: #0f1115;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+th, td {
+    padding: 14px 16px;
+    text-align: left;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #1e293b;
+}
+
+th {
+    background: #15181f;
+    color: #ffffff;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+}
+
+tr:last-child td {
+    border-bottom: none;
+}
+
+tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* Gráficos */
+.charts-container {
+    display: flex;
+    gap: 20px;
+    margin-top: 30px;
+    flex-wrap: wrap;
+}
+
+.chart-wrapper {
+    flex: 1;
+    min-width: 300px;
+    background: #15181f;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #222530;
+    height: 320px;
+    position: relative;
+}
+
+h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #ffffff;
+    margin-top: 10px;
+}
