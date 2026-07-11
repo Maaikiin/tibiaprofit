@@ -293,14 +293,28 @@ function atualizarTabelaHunts() {
 function atualizarTabelaDrops() {
     const corpo = document.getElementById('corpoDrops');
     if (!corpo) return;
+    
     corpo.innerHTML = '';
     
     [...todosOsDrops].reverse().forEach(drop => {
+        // O Fandom prefere o nome com a primeira letra maiúscula e espaços mantidos
+        // Exemplo: "Magic Plate Armor"
+        const nomeFormatado = drop.item.trim();
+        
+        // Esta URL busca a imagem diretamente do servidor de arquivos do Fandom
+        // Eles usam um sistema de busca interna que redireciona para a imagem
+        const urlImagem = `https://tibia.fandom.com/wiki/Special:FilePath/${nomeFormatado.replace(/ /g, '_')}.gif`;
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${drop.data}</td>
             <td>${drop.mes}</td>
-            <td>${drop.item}</td>
+            <td>
+                <img src="${urlImagem}" 
+                     onerror="this.style.display='none'" 
+                     style="width: 32px; height: 32px; vertical-align: middle; margin-right: 8px;">
+                ${drop.item}
+            </td>
             <td style="color: #e2b45c; font-weight: bold;">+${parseFloat(drop.valor).toFixed(2)} kk</td>
             <td>
                 <button onclick="removerDrop('${drop.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
@@ -313,13 +327,24 @@ function atualizarTabelaDrops() {
 function atualizarTabelaCompras() {
     const corpo = document.getElementById('corpoCompras');
     if (!corpo) return;
-    corpo.innerHTML = '';
+    corpo.innerHTML = ''; // Limpa a tabela antes de desenhar
     
+    // Processa a lista de compras
     [...todasAsCompras].reverse().forEach(compra => {
+        // Formatação do nome para a URL do Fandom
+        const nomeFormatado = compra.item.trim();
+        const urlImagem = `https://tibia.fandom.com/wiki/Special:FilePath/${nomeFormatado.replace(/ /g, '_')}.gif`;
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${compra.data}</td>
-            <td>${compra.item}</td>
+            <td>${compra.mes || '-'}</td>
+            <td>
+                <img src="${urlImagem}" 
+                     onerror="this.style.display='none'" 
+                     style="width: 32px; height: 32px; vertical-align: middle; margin-right: 8px;">
+                ${compra.item}
+            </td>
             <td style="color: #ef4444; font-weight: bold;">-${parseFloat(compra.valor).toFixed(2)} kk</td>
             <td>
                 <button onclick="removerCompra('${compra.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
@@ -413,9 +438,6 @@ function atualizarResumoMensalETotais() {
     }
 }
 
-// ==========================================================================
-// GERADOR DINÂMICO DE GRÁFICOS (COM DATALABELS ATIVOS NATALMENTE)
-// ==========================================================================
 function renderizarGraficosDinamicos(dadosAgrupados, mesesRotulos) {
     const dadosLucro = [];
     const dadosExperiencia = [];
@@ -434,9 +456,9 @@ function renderizarGraficosDinamicos(dadosAgrupados, mesesRotulos) {
     if (graficoProfitInstancia) graficoProfitInstancia.destroy();
     if (graficoXpInstancia) graficoXpInstancia.destroy();
 
-    // Registra e ativa globalmente o plugin de exibição estática de valores
     Chart.register(ChartDataLabels);
 
+    // Gráfico de Profit
     const ctxProfit = canvasProfit.getContext('2d');
     graficoProfitInstancia = new Chart(ctxProfit, {
         type: 'bar',
@@ -445,7 +467,6 @@ function renderizarGraficosDinamicos(dadosAgrupados, mesesRotulos) {
             datasets: [{
                 label: 'Profit Líquido Mensal (kk)',
                 data: dadosLucro,
-                // A LÓGICA DE CORES ESTÁ AQUI:
                 backgroundColor: dadosLucro.map(v => v >= 0 ? 'rgba(0, 255, 102, 0.25)' : 'rgba(255, 51, 51, 0.25)'),
                 borderColor: dadosLucro.map(v => v >= 0 ? '#00ff66' : '#ff3333'),
                 borderWidth: 2
@@ -454,19 +475,20 @@ function renderizarGraficosDinamicos(dadosAgrupados, mesesRotulos) {
         options: { 
             responsive: true, 
             maintainAspectRatio: false, 
-            layout: { padding: { top: 25 } },
+            layout: { padding: { top: 40, bottom: 10 } }, // Espaço superior aumentado
             scales: { 
                 y: { 
                     beginAtZero: true,
-                    // Garante que o zero fique alinhado mesmo com negativos
-                    suggestedMin: Math.min(...dadosLucro, 0) 
+                    suggestedMin: Math.min(...dadosLucro, 0),
+                    suggestedMax: Math.max(...dadosLucro, 0) * 1.2 // Espaço extra no topo[cite: 1]
                 } 
             },
             plugins: {
                 datalabels: {
                     display: true,
-                    align: (context) => context.dataset.data[context.dataIndex] >= 0 ? 'top' : 'bottom',
-                    anchor: 'end',
+                    anchor: 'end', // Fixado na extremidade[cite: 1]
+                    align: 'top',  // Acima da barra[cite: 1]
+                    offset: 5,     // Distância da barra[cite: 1]
                     color: (context) => context.dataset.data[context.dataIndex] >= 0 ? '#00ff66' : '#ff3333',
                     fontWeight: 'bold',
                     formatter: (value) => value !== 0 ? value.toFixed(2) + ' kk' : ''
@@ -475,6 +497,7 @@ function renderizarGraficosDinamicos(dadosAgrupados, mesesRotulos) {
         }
     });
 
+    // Gráfico de XP
     const ctxXp = canvasXp.getContext('2d');
     graficoXpInstancia = new Chart(ctxXp, {
         type: 'line',
@@ -493,13 +516,19 @@ function renderizarGraficosDinamicos(dadosAgrupados, mesesRotulos) {
         options: { 
             responsive: true, 
             maintainAspectRatio: false, 
-            layout: { padding: { top: 25 } },
-            scales: { y: { beginAtZero: true } },
+            layout: { padding: { top: 40, bottom: 10 } }, // Espaço superior aumentado[cite: 1]
+            scales: { 
+                y: { 
+                    beginAtZero: true,
+                    suggestedMax: Math.max(...dadosExperiencia, 1) * 1.2 // Espaço extra no topo[cite: 1]
+                } 
+            },
             plugins: {
                 datalabels: {
                     display: true,
-                    align: 'top',
-                    anchor: 'end',
+                    anchor: 'end', // Fixado na extremidade[cite: 1]
+                    align: 'top',  // Acima do ponto[cite: 1]
+                    offset: 5,     // Distância do ponto[cite: 1]
                     color: '#f3b145',
                     fontWeight: 'bold',
                     formatter: (value) => value !== 0 ? value.toFixed(2) + ' kk' : ''
@@ -681,4 +710,18 @@ if (btnConfig && menuConfig) {
             menuConfig.style.display = 'none';
         }
     });
+}
+async function buscarImagemItem(nomeDoItem) {
+    // Formata o nome para o padrão da API (ex: "Falcon Greaves" -> "falcon_greaves")
+    const nomeFormatado = nomeDoItem.toLowerCase().replace(/ /g, "_");
+    const url = `https://api.tibiadata.com/v4/item/${nomeFormatado}`;
+
+    try {
+        const resposta = await fetch(url);
+        const dados = await resposta.json();
+        return dados.item.image_url; // Retorna o link da imagem
+    } catch (erro) {
+        console.warn("Imagem não encontrada para:", nomeDoItem);
+        return 'https://static.tibia.com/images/items/trash_holder.gif'; // Imagem padrão caso não ache
+    }
 }
