@@ -668,3 +668,17 @@ function removerCompra(compraId) {
             });
     }
 }
+// Lógica para abrir/fechar o menu de configurações
+const btnConfig = document.getElementById('btnConfig');
+const menuConfig = document.getElementById('menuConfig');
+
+if (btnConfig && menuConfig) {
+    btnConfig.addEventListener('click', () => {
+        // Se estiver escondido, mostra. Se estiver mostrando, esconde.
+        if (menuConfig.style.display === 'none' || menuConfig.style.display === '') {
+            menuConfig.style.display = 'flex';
+        } else {
+            menuConfig.style.display = 'none';
+        }
+    });
+}
