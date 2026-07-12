@@ -1,3 +1,4 @@
+let charAtual = "Geral";
 // ==========================================================================
 // CONFIGURAÇÃO DO FIREBASE
 // ==========================================================================
@@ -96,6 +97,8 @@ tabs.forEach(tab => {
 // ==========================================================================
 function carregarDadosDoUsuario() {
     if (!usuarioAtualUid) return;
+
+    carregarInfoChar();
 
     database.ref(`users/${usuarioAtualUid}/hunts`).on('value', (snapshot) => {
         todasAsHunts = [];
@@ -724,4 +727,84 @@ async function buscarImagemItem(nomeDoItem) {
         console.warn("Imagem não encontrada para:", nomeDoItem);
         return 'https://static.tibia.com/images/items/trash_holder.gif'; // Imagem padrão caso não ache
     }
+}
+// --- FUNCIONALIDADE DE CHAR (Integrada) ---
+const btnCadastrarChar = document.getElementById('btnCadastrarChar');
+if (btnCadastrarChar) {
+    btnCadastrarChar.addEventListener('click', () => {
+        const nome = prompt("Digite o nome do seu Character exatamente como no Tibia:");
+        if (nome) {
+            database.ref(`users/${usuarioAtualUid}/config`).update({ nomeChar: nome });
+            document.getElementById('menuConfig').style.display = 'none';
+        }
+    });
+}
+
+async function carregarInfoChar() {
+    database.ref(`users/${usuarioAtualUid}/config`).on('value', async (snapshot) => {
+        const config = snapshot.val();
+        if (!config || !config.nomeChar) return;
+
+        try {
+            const res = await fetch(`https://api.tibiadata.com/v4/character/${config.nomeChar}`);
+            const data = await res.json();
+            
+            if (data.character && data.character.character) {
+                const c = data.character.character;
+                const lvl = parseInt(c.level);
+                const voc = c.vocation;
+
+                // Variáveis Base (Level 8)
+                let hp = 185, mana = 50, cap = 470;
+
+                // Cálculos baseados nas suas regras
+                if (voc.includes("Knight")) {
+                    hp += (lvl - 8) * 15; mana += (lvl - 8) * 5; cap += (lvl - 8) * 25;
+                } else if (voc.includes("Paladin")) {
+                    hp += (lvl - 8) * 10; mana += (lvl - 8) * 15; cap += (lvl - 8) * 20;
+                } else if (voc.includes("Monk")) {
+                    hp += (lvl - 8) * 10; mana += (lvl - 8) * 10; cap += (lvl - 8) * 25;
+                } else if (voc.includes("Druid") || voc.includes("Sorcerer")) {
+                    hp += (lvl - 8) * 5; mana += (lvl - 8) * 30; cap += (lvl - 8) * 10;
+                }
+
+                // Cálculo de Shared XP
+                const minShared = Math.floor((lvl / 3) * 2);
+                const maxShared = Math.floor((lvl / 6) * 9);
+
+                // Lógica da Imagem da Vocação
+                const vocImages = {
+                    "Knight": "https://www.tibiawiki.com.br/images/archive/4/42/20250307010623%21Avatar_of_Steel.gif",
+                    "Paladin": "https://www.tibiawiki.com.br/images/archive/3/3e/20250307010835%21Avatar_of_Light.gif",
+                    "Sorcerer": "https://www.tibiawiki.com.br/images/archive/9/9a/20250307010903%21Avatar_of_Storm.gif",
+                    "Druid": "https://www.tibiawiki.com.br/images/archive/5/58/20250307010735%21Avatar_of_Nature.gif",
+                    "Monk": "https://static.wikia.nocookie.net/tibia/images/c/c6/Avatar_of_Balance_%28Outfit%29.gif/revision/latest?cb=20250225114155&path-prefix=en&format=original"
+                };
+
+                let imgUrl = "";
+                if (voc.includes("Knight")) imgUrl = vocImages.Knight;
+                else if (voc.includes("Paladin")) imgUrl = vocImages.Paladin;
+                else if (voc.includes("Sorcerer")) imgUrl = vocImages.Sorcerer;
+                else if (voc.includes("Druid")) imgUrl = vocImages.Druid;
+                else if (voc.includes("Monk")) imgUrl = vocImages.Monk;
+
+                // Preenchimento dos Elementos
+                document.getElementById('displayNomeChar').innerText = config.nomeChar;
+                document.getElementById('displayDetalhesChar').innerText = `Lvl: ${lvl} | ${voc} | ${c.world}`;
+                document.getElementById('statVida').innerText = hp;
+                document.getElementById('statMana').innerText = mana;
+                document.getElementById('statCap').innerText = cap;
+                document.getElementById('statShared').innerText = `${minShared}-${maxShared}`;
+
+                // Aplicar a imagem (Certifique-se que o elemento com ID 'imgChar' exista no seu HTML)
+                const imgElement = document.getElementById('imgChar');
+                if (imgElement) {
+                    imgElement.style.backgroundImage = `url('${imgUrl}')`;
+                    imgElement.style.backgroundSize = "contain";
+                    imgElement.style.backgroundRepeat = "no-repeat";
+                    imgElement.style.backgroundPosition = "center";
+                }
+            }
+        } catch (e) { console.error("Erro ao carregar char:", e); }
+    });
 }

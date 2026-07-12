@@ -10,8 +10,8 @@
 <body class="login-body">
 
     <div class="dashboard-container">
-        <!-- Cabeçalho -->
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 20px; margin-bottom: 25px;">
+        <!-- Cabeçalho (Logo) -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 20px; margin-bottom: 10px;">
             <div style="display: flex; align-items: center; gap: 15px;">
                 <img src="dashboard-logo.png" alt="Tibia Profit Logo" style="height: 60px; width: auto; filter: drop-shadow(0px 4px 8px rgba(0,0,0,0.5));">
                 <h1 class="dash-title">
@@ -20,16 +20,40 @@
                 </h1>
             </div>
             <div style="display: flex; gap: 10px; align-items: center; position: relative;">
-    <!-- Botão de engrenagem -->
-    <button id="btnConfig" class="dash-btn" style="background: transparent; border: 1px solid #1e293b; color: #fff;">⚙️</button>
+                <!-- Botão de engrenagem -->
+                <button id="btnConfig" class="dash-btn" style="background: transparent; border: 1px solid #1e293b; color: #fff;">⚙️</button>
+                
+                <!-- Menu escondido -->
+                <div id="menuConfig" style="display: none; position: absolute; top: 50px; right: 0; background: #15181f; padding: 10px; border: 1px solid #222530; border-radius: 8px; z-index: 100; flex-direction: column; gap: 5px;">
+                    <button id="btnCadastrarChar" class="dash-btn" style="background-color: #2563eb; color: white; width: 100%; margin-bottom: 5px;">Cadastrar Char</button>
+                    <button id="btnResetarDados" class="dash-btn" style="background-color: #d97706; color: white; width: 100%;">Resetar Dados</button>
+                    <button id="btnSair" class="dash-btn btn-sair" style="width: 100%;">Log Out</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Informações do Personagem (Nova Posição) -->
+        <div id="infoChar" style="background: #15181f; border: 1px solid #222530; border-radius: 8px; padding: 20px; margin-bottom: 25px; display: flex; align-items: center; justify-content: space-between;">
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <div id="imgChar" style="width: 60px; height: 60px; background: #060608; border: 1px solid #00ff66; border-radius: 8px; background-size: cover;"></div>
+        <div>
+            <h2 id="displayNomeChar" style="margin: 0; color: #ffffff; font-size: 1.5rem;">Carregando...</h2>
+            <div id="displayDetalhesChar" style="color: #94a3b8; font-size: 0.9rem;"></div>
+        </div>
+    </div>
     
-    <!-- Menu escondido que contém os botões -->
-    <div id="menuConfig" style="display: none; position: absolute; top: 50px; right: 0; background: #15181f; padding: 10px; border: 1px solid #222530; border-radius: 8px; z-index: 100; flex-direction: column; gap: 5px;">
-        <button id="btnResetarDados" class="dash-btn" style="background-color: #d97706; color: white; width: 100%;">Resetar Dados</button>
-        <button id="btnSair" class="dash-btn btn-sair" style="width: 100%;">Log Out</button>
+    <!-- Bloco de Status Atualizado -->
+<div style="background: #0f1115; border: 1px solid #1e293b; padding: 15px; border-radius: 6px; display: flex; gap: 20px; font-size: 0.85rem;">
+    <div>
+        <div style="color: #ff3366;">❤️ <span id="statVida">--</span></div>
+        <div style="color: #4da6ff;">💧 <span id="statMana">--</span></div>
+    </div>
+    <div>
+        <div style="color: #b45309;">💰 <span id="statCap">--</span></div>
+        <div style="color: #33ccff;">🛡️ <span id="statShared">--</span></div>
     </div>
 </div>
-        </div>
+</div>
 
         <!-- Cards de Totais Gerais -->
         <div class="cards-resumo">
@@ -94,26 +118,25 @@
                     </tr>
                 </thead>
                 <tbody id="corpoHunts">
-                    <tr><!-- Linha vazia inicializadora padrão --></tr>
+                    <tr></tr>
                 </tbody>
             </table>
         </div>
 
         <!-- ABA NOVA: CALCULADORA PT -->
-<div id="tab-pt" class="tab-content">
-    <div class="input-box">
-        <label>Cole o log da Party Hunt:</label>
-        <textarea id="logInputPt" placeholder="Cole o log da PT aqui..." style="height: 150px;"></textarea>
-        
-        <label for="xpInputPt" style="margin-top:10px; display:block;">XP Total da Hunt (em kk):</label>
-        <input type="number" id="xpInputPt" step="0.1" placeholder="Ex: 150.5" style="width: 100%; padding: 10px; margin-bottom: 10px;">
-        
-        <button id="btnCalcularPt" class="dash-btn" style="width:100%;">Calcular Divisão PT</button>
-    </div>
-    <div id="resultadoDivisaoPt" style="margin-top: 20px; padding: 15px; background: #1e293b; border-radius: 8px; color: white;">
-        <!-- Resultado aparecerá aqui -->
-    </div>
-</div>
+        <div id="tab-pt" class="tab-content">
+            <div class="input-box">
+                <label>Cole o log da Party Hunt:</label>
+                <textarea id="logInputPt" placeholder="Cole o log da PT aqui..." style="height: 150px;"></textarea>
+                
+                <label for="xpInputPt" style="margin-top:10px; display:block;">XP Total da Hunt (em kk):</label>
+                <input type="number" id="xpInputPt" step="0.1" placeholder="Ex: 150.5" style="width: 100%; padding: 10px; margin-bottom: 10px;">
+                
+                <button id="btnCalcularPt" class="dash-btn" style="width:100%;">Calcular Divisão PT</button>
+            </div>
+            <div id="resultadoDivisaoPt" style="margin-top: 20px; padding: 15px; background: #1e293b; border-radius: 8px; color: white;">
+            </div>
+        </div>
 
         <!-- ABA 2: DROPS RAROS -->
         <div id="tab-drops" class="tab-content">
@@ -140,7 +163,7 @@
                     </tr>
                 </thead>
                 <tbody id="corpoDrops">
-                    <tr><!-- Linha vazia inicializadora padrão --></tr>
+                    <tr></tr>
                 </tbody>
             </table>
         </div>
@@ -170,7 +193,7 @@
                     </tr>
                 </thead>
                 <tbody id="corpoCompras">
-                    <tr><!-- Linha vazia inicializadora padrão --></tr>
+                    <tr></tr>
                 </tbody>
             </table>
         </div>
@@ -187,7 +210,7 @@
                     </tr>
                 </thead>
                 <tbody id="corpoResumo">
-                    <tr><!-- Linha vazia inicializadora padrão --></tr>
+                    <tr></tr>
                 </tbody>
             </table>
 
@@ -209,7 +232,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <script src="script.js"></script>
     <footer style="text-align: center; padding: 20px 0; margin-top: 40px; color: #64748b; font-size: 12px; border-top: 1px solid #1e293b;">
-    <p>Feito por Maikiin | Dúvidas, sugestões ou críticas? Me procure In Game.</p>
-</footer>
+        <p>Feito por Maikiin | Dúvidas, sugestões ou críticas? Me procure In Game.</p>
+    </footer>
 </body>
 </html>
