@@ -741,8 +741,22 @@ if (btnCadastrarChar) {
 }
 
 async function carregarInfoChar() {
+    // AVISO: Dispara se após 3 segundos ainda estiver "Carregando..."
+    const alertaCadastro = setTimeout(() => {
+        const nomeDisplay = document.getElementById('displayNomeChar');
+        if (nomeDisplay && nomeDisplay.innerText === "Carregando...") {
+            alert("Olá! Parece que você ainda não cadastrou seu personagem. Clique na engrenagem no canto superior direito para cadastrar.");
+        }
+    }, 3000);
+
     database.ref(`users/${usuarioAtualUid}/config`).on('value', async (snapshot) => {
         const config = snapshot.val();
+        
+        // Se achou um char, cancela o alerta de cadastro
+        if (config && config.nomeChar) {
+            clearTimeout(alertaCadastro);
+        }
+
         if (!config || !config.nomeChar) return;
 
         try {
@@ -796,7 +810,7 @@ async function carregarInfoChar() {
                 document.getElementById('statCap').innerText = cap;
                 document.getElementById('statShared').innerText = `${minShared}-${maxShared}`;
 
-                // Aplicar a imagem (Certifique-se que o elemento com ID 'imgChar' exista no seu HTML)
+                // Aplicar a imagem
                 const imgElement = document.getElementById('imgChar');
                 if (imgElement) {
                     imgElement.style.backgroundImage = `url('${imgUrl}')`;
