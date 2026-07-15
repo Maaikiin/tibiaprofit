@@ -1,20 +1,20 @@
 name: Atualizar XP Diario
 on:
   schedule:
-    - cron: '0 10 * * *' # Roda às 07:00 no horário de Brasília (10:00 UTC)
-  workflow_dispatch: # Permite rodar manualmente para testar
+    - cron: '0 10 * * *'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # Atualizado para v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4 # Atualizado para v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Instalar dependências
         run: npm install firebase-admin node-fetch
