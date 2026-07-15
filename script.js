@@ -135,8 +135,32 @@ const btnCalcular = document.getElementById('btnCalcular');
 if (btnCalcular) {
     btnCalcular.addEventListener('click', () => {
         const textoLog = document.getElementById('logInput').value;
+        const inputProfitIndividual = document.getElementById('profitIndividual');
+        const profitIndividualValor = inputProfitIndividual ? inputProfitIndividual.value.trim() : '';
+        const resultadoDiv = document.getElementById('resultadoDivisaoPt');
+
+        if (resultadoDiv) resultadoDiv.innerHTML = '';
+
+        // ==================== PROFIT INDIVIDUAL (MANUAL) ====================
+        // Usado por quem não salva/cola o log completo da Hunt em PT.
+        if (profitIndividualValor !== '') {
+            const profitManual = parseFloat(profitIndividualValor.replace(',', '.'));
+
+            if (isNaN(profitManual)) {
+                alert('Digite um valor numérico válido no campo Profit Individual.');
+                return;
+            }
+
+            salvarHunt(profitManual, 0, profitManual, () => {
+                document.getElementById('logInput').value = '';
+                inputProfitIndividual.value = '';
+                alert('Profit individual salvo com sucesso!');
+            });
+            return;
+        }
+
         if (!textoLog.trim()) {
-            alert('Por favor, cole um log do Session Analyser válido.');
+            alert('Cole um log do Session Analyser ou preencha o Profit Individual.');
             return;
         }
 
@@ -156,57 +180,146 @@ if (btnCalcular) {
             return parseFloat(limpo) || 0;
         };
 
-        let valorBalance = 0;
-        let valorXp = 0;
-
         const linhasLog = textoLog.split('\n');
-        linhasLog.forEach(linha => {
-            const matchXp = linha.match(/^\s*XP\s+Gain:\s*([0-9.,\s\u00A0-]+)/i);
-            const matchBalance = linha.match(/^\s*Balance:\s*([0-9.,\s\u00A0-]+)/i);
 
-            if (matchXp) {
-                valorXp = limparNumeroTibia(matchXp[1]);
+        // Detecção automática: log de Party Hunt tem "Loot Type:" e mais de uma linha "Balance:"
+        // (uma geral da sessão + uma por jogador). Log solo tem apenas uma.
+        const ocorrenciasBalance = linhasLog.filter(l => /Balance:/i.test(l)).length;
+        const ehPartyHunt = /Loot Type:/i.test(textoLog) || ocorrenciasBalance > 1;
+
+        if (!ehPartyHunt) {
+            // ==================== HUNT SOLO ====================
+            let valorBalance = 0;
+            linhasLog.forEach(linha => {
+                const matchBalance = linha.match(/^\s*Balance:\s*([0-9.,\s\u00A0-]+)/i);
+                if (matchBalance) valorBalance = limparNumeroTibia(matchBalance[1]);
+            });
+
+            const balanceOriginal = valorBalance / 1000000;
+
+            salvarHunt(balanceOriginal, 0, balanceOriginal, () => {
+                document.getElementById('logInput').value = '';
+                alert('Hunt solo processada e salva com sucesso!');
+            });
+
+        } else {
+            // ==================== PARTY HUNT ====================
+            let jogadores = [];
+            let totalBalance = 0;
+            let playerAtual = null;
+
+            linhasLog.forEach(linha => {
+                if (linha.trim() && !linha.startsWith('\t') && !linha.startsWith(' ') && !["Session", "Loot", "Supplies", "Balance"].some(p => linha.includes(p))) {
+                    playerAtual = linha.trim();
+                }
+                if (playerAtual && linha.includes("Balance:")) {
+                    const balMatch = linha.match(/Balance:\s*([\d,]+)/);
+                    if (balMatch) {
+                        const valor = limparNumeroTibia(balMatch[1]) / 1000000;
+                        jogadores.push({ nome: playerAtual, balance: valor });
+                        totalBalance += valor;
+                        playerAtual = null;
+                    }
+                }
+            });
+
+            if (jogadores.length === 0) {
+                alert("Não consegui identificar os jogadores dessa Party Hunt.");
+                return;
             }
-            if (matchBalance) {
-                valorBalance = limparNumeroTibia(matchBalance[1]);
-            }
-        });
 
-        const balanceOriginal = valorBalance / 1000000; 
-        const xpGanha = valorXp / 1000000; 
+            if (!resultadoDiv) return;
 
-        const seletorBoost = document.getElementById('boosts');
-        const quantidadeBoosts = seletorBoost ? parseInt(seletorBoost.value) : 0;
-        
-        let custoBoostKk = 0;
-        if (quantidadeBoosts === 1) custoBoostKk = 0.90;       
-        else if (quantidadeBoosts === 2) custoBoostKk = 2.25;  
-        else if (quantidadeBoosts === 3) custoBoostKk = 4.95;  
-        else if (quantidadeBoosts === 4) custoBoostKk = 10.35; 
-        else if (quantidadeBoosts === 5) custoBoostKk = 21.15; 
+            const media = totalBalance / jogadores.length;
 
-        const profitReal = balanceOriginal - custoBoostKk;
+            let pagadores = jogadores.filter(j => j.balance > media).map(j => ({...j, dif: j.balance - media}));
+            let recebedores = jogadores.filter(j => j.balance < media).map(j => ({...j, dif: media - j.balance}));
 
-        const dataAtual = new Date();
-        const dataFormatada = dataAtual.toLocaleDateString('pt-BR');
-        const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-        const nomeMesAtual = mesesNomes[dataAtual.getMonth()];
+            let listaTransacoes = [];
+            pagadores.forEach(p => {
+                recebedores.forEach(r => {
+                    if (p.dif > 0.001 && r.dif > 0.001) {
+                        let valor = Math.min(p.dif, r.dif);
+                        listaTransacoes.push(`${p.nome} to pay ${valor.toFixed(2)}kk to ${r.nome} (Bank: transfer ${Math.floor(valor*1000000)} to ${r.nome})`);
+                        p.dif -= valor; r.dif -= valor;
+                    }
+                });
+            });
 
-        database.ref(`users/${usuarioAtualUid}/hunts`).push().set({
-            data: dataFormatada,
-            mes: nomeMesAtual,
-            balanceOriginal: parseFloat(balanceOriginal),
-            custoBoost: parseFloat(custoBoostKk),
-            profitReal: parseFloat(profitReal),
-            xpGanha: parseFloat(xpGanha),
-            timestamp: firebase.database.ServerValue.TIMESTAMP
-        }).then(() => {
-            document.getElementById('logInput').value = '';
-            if (seletorBoost) seletorBoost.value = '0';
-            alert('Hunt processada e salva com sucesso!');
-        }).catch(erro => {
-            alert('Erro ao salvar no banco: ' + erro.message);
-        });
+            let html = `<div style="padding: 15px; background: #1e293b; border-radius: 8px; color: #e2e8f0; font-family: sans-serif;">`;
+            listaTransacoes.forEach(t => {
+                html += `<div style="margin-bottom: 8px; background: #15181f; padding: 10px; border-radius: 4px; display: flex; justify-content: space-between;">
+                            <span>${t}</span>
+                            <button onclick="navigator.clipboard.writeText('${t}')" style="cursor:pointer;">Copy</button>
+                         </div>`;
+            });
+
+            html += `<div style="margin-top: 15px; border-top: 1px solid #334155; padding-top: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Total profit: <b>${totalBalance.toFixed(2)}kk</b> | Média por player: <b>${media.toFixed(2)}kk</b></span>
+                            <button id="btnEnviarPt" style="cursor:pointer; padding: 2px 10px;">Send</button>
+                        </div>
+                     </div>
+                     <button id="btnCopyDiscord" style="margin-top: 15px; width: 100%; padding: 10px; cursor:pointer;">Copy all to Discord!</button>
+                     </div>`;
+
+            resultadoDiv.innerHTML = html;
+
+            document.getElementById('btnEnviarPt').addEventListener('click', () => {
+                salvarHunt(media, 0, media, () => {
+                    document.getElementById('logInput').value = '';
+                    resultadoDiv.innerHTML = '';
+                    alert('Party Hunt processada e salva com sucesso!');
+                });
+            });
+
+            document.getElementById('btnCopyDiscord').addEventListener('click', () => {
+                const textoDiscord = listaTransacoes.join('\n') + `\n\nTotal profit: ${totalBalance.toFixed(2)}kk~ which is: ${media.toFixed(2)}kk~ for each player.`;
+                navigator.clipboard.writeText(textoDiscord);
+                alert("Copiado!");
+            });
+
+            const btnClear = document.createElement('button');
+            btnClear.innerText = "Clear";
+            btnClear.style.marginTop = "10px";
+            btnClear.style.width = "100%";
+            btnClear.style.padding = "10px";
+            btnClear.style.cursor = "pointer";
+            btnClear.style.backgroundColor = "#991b1b";
+            btnClear.style.color = "white";
+            btnClear.style.border = "none";
+            btnClear.style.borderRadius = "4px";
+
+            btnClear.addEventListener('click', () => {
+                document.getElementById('logInput').value = "";
+                resultadoDiv.innerHTML = "";
+            });
+
+            resultadoDiv.appendChild(btnClear);
+        }
+    });
+}
+
+// ==========================================================================
+// SALVAR HUNT NO BANCO (usado tanto para Solo quanto para Party Hunt)
+// ==========================================================================
+function salvarHunt(balanceOriginal, custoBoostKk, profitReal, callback) {
+    const dataAtual = new Date();
+    const dataFormatada = dataAtual.toLocaleDateString('pt-BR');
+    const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const nomeMesAtual = mesesNomes[dataAtual.getMonth()];
+
+    database.ref(`users/${usuarioAtualUid}/hunts`).push().set({
+        data: dataFormatada,
+        mes: nomeMesAtual,
+        balanceOriginal: parseFloat(balanceOriginal),
+        custoBoost: parseFloat(custoBoostKk),
+        profitReal: parseFloat(profitReal),
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    }).then(() => {
+        if (callback) callback();
+    }).catch(erro => {
+        alert('Erro ao salvar no banco: ' + erro.message);
     });
 }
 
@@ -284,7 +397,6 @@ function atualizarTabelaHunts() {
             <td style="color: ${hunt.balanceOriginal >= 0 ? '#00ff66' : '#ff3333'}">${parseFloat(hunt.balanceOriginal).toFixed(2)} kk</td>
             <td style="color: #ffaa00;">${parseFloat(hunt.custoBoost).toFixed(2)} kk</td>
             <td style="color: ${hunt.profitReal >= 0 ? '#00ff66' : '#ff3333'}; font-weight: bold;">${parseFloat(hunt.profitReal).toFixed(2)} kk</td>
-            <td style="color: #f3b145;">${parseFloat(hunt.xpGanha).toFixed(2)} kk</td>
             <td>
                 <button onclick="removerHunt('${hunt.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
             </td>
@@ -361,11 +473,9 @@ function atualizarTabelaCompras() {
 // CÁLCULO DE TOTAIS E RESUMO MENSAL
 // ==========================================================================
 let graficoProfitInstancia = null;
-let graficoXpInstancia = null;
 
 function atualizarResumoMensalETotais() {
     let totalProfitAnual = 0;
-    let totalXpAnual = 0;
     let totalDropsAnual = 0;
     let totalComprasAnual = 0;
 
@@ -373,18 +483,15 @@ function atualizarResumoMensalETotais() {
     const mesesOrdenados = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
     mesesOrdenados.forEach(m => {
-        resumoMensalEstrutura[m] = { profitTotal: 0, xpTotal: 0 };
+        resumoMensalEstrutura[m] = { profitTotal: 0 };
     });
 
     // 1. Soma Hunts
     todasAsHunts.forEach(hunt => {
         const p = parseFloat(hunt.profitReal || 0);
-        const x = parseFloat(hunt.xpGanha || 0);
         totalProfitAnual += p;
-        totalXpAnual += x;
         if (resumoMensalEstrutura[hunt.mes]) {
             resumoMensalEstrutura[hunt.mes].profitTotal += p;
-            resumoMensalEstrutura[hunt.mes].xpTotal += x;
         }
     });
 
@@ -414,7 +521,6 @@ function atualizarResumoMensalETotais() {
 
     // Atualiza elementos de texto
     if (document.getElementById('totalProfit')) document.getElementById('totalProfit').innerText = `${totalProfitAnual.toFixed(2)} kk`;
-    if (document.getElementById('totalXP')) document.getElementById('totalXP').innerText = `${totalXpAnual.toFixed(2)} kk`;
     if (document.getElementById('totalDropsValue')) document.getElementById('totalDropsValue').innerText = `${totalDropsAnual.toFixed(2)} kk`;
     if (document.getElementById('totalComprasValue')) document.getElementById('totalComprasValue').innerText = `${totalComprasAnual.toFixed(2)} kk`;
 
@@ -424,12 +530,11 @@ function atualizarResumoMensalETotais() {
 
     mesesOrdenados.forEach(mes => {
         const dadosDoMes = resumoMensalEstrutura[mes];
-        if (dadosDoMes.profitTotal !== 0 || dadosDoMes.xpTotal !== 0) {
+        if (dadosDoMes.profitTotal !== 0) {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td style="color: #d1a140; font-weight: bold;">${mes}</td>
                 <td style="color: ${dadosDoMes.profitTotal >= 0 ? '#00ff66' : '#ff3333'}">${dadosDoMes.profitTotal.toFixed(2)} kk</td>
-                <td style="color: #f3b145;">${dadosDoMes.xpTotal.toFixed(2)} kk</td>
             `;
             corpoResumo.appendChild(tr);
         }
@@ -443,21 +548,17 @@ function atualizarResumoMensalETotais() {
 
 function renderizarGraficosDinamicos(dadosAgrupados, mesesRotulos) {
     const dadosLucro = [];
-    const dadosExperiencia = [];
 
     mesesRotulos.forEach(m => {
         dadosLucro.push(dadosAgrupados[m].profitTotal);
-        dadosExperiencia.push(dadosAgrupados[m].xpTotal);
     });
 
     const canvasProfit = document.getElementById('chartProfit');
-    const canvasXp = document.getElementById('chartXP');
 
-    if (typeof Chart === 'undefined' || !canvasProfit || !canvasXp) return;
-    if (canvasProfit.clientWidth === 0 || canvasXp.clientWidth === 0) return;
+    if (typeof Chart === 'undefined' || !canvasProfit) return;
+    if (canvasProfit.clientWidth === 0) return;
 
     if (graficoProfitInstancia) graficoProfitInstancia.destroy();
-    if (graficoXpInstancia) graficoXpInstancia.destroy();
 
     Chart.register(ChartDataLabels);
 
@@ -499,174 +600,8 @@ function renderizarGraficosDinamicos(dadosAgrupados, mesesRotulos) {
             }
         }
     });
-
-    // Gráfico de XP
-    const ctxXp = canvasXp.getContext('2d');
-    graficoXpInstancia = new Chart(ctxXp, {
-        type: 'line',
-        data: {
-            labels: mesesRotulos,
-            datasets: [{
-                label: 'XP Conquistada Mensal (kk)',
-                data: dadosExperiencia,
-                backgroundColor: 'rgba(243, 177, 69, 0.15)',
-                borderColor: '#f3b145',
-                borderWidth: 3,
-                tension: 0.2,
-                fill: true
-            }]
-        },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            layout: { padding: { top: 40, bottom: 10 } }, // Espaço superior aumentado[cite: 1]
-            scales: { 
-                y: { 
-                    beginAtZero: true,
-                    suggestedMax: Math.max(...dadosExperiencia, 1) * 1.2 // Espaço extra no topo[cite: 1]
-                } 
-            },
-            plugins: {
-                datalabels: {
-                    display: true,
-                    anchor: 'end', // Fixado na extremidade[cite: 1]
-                    align: 'top',  // Acima do ponto[cite: 1]
-                    offset: 5,     // Distância do ponto[cite: 1]
-                    color: '#f3b145',
-                    fontWeight: 'bold',
-                    formatter: (value) => value !== 0 ? value.toFixed(2) + ' kk' : ''
-                }
-            }
-        }
-    });
 }
-// ==========================================================================
-// CALCULADORA DE PARTY HUNT (LÓGICA)
-// ==========================================================================
-const btnCalcularPt = document.getElementById('btnCalcularPt');
-if (btnCalcularPt) {
-    btnCalcularPt.addEventListener('click', () => {
-        const texto = document.getElementById('logInputPt').value;
-        const xp = document.getElementById('xpInputPt').value;
-        const resultadoDiv = document.getElementById('resultadoDivisaoPt');
 
-        if (!texto) { alert("Cole o log da Party Hunt!"); return; }
-
-        let jogadores = [];
-        let totalBalance = 0;
-
-        const linhas = texto.split('\n');
-        let playerAtual = null;
-
-        linhas.forEach(linha => {
-            if (linha.trim() && !linha.startsWith('\t') && !linha.startsWith(' ') && !["Session", "Loot", "Supplies", "Balance"].some(p => linha.includes(p))) {
-                playerAtual = linha.trim();
-            }
-            if (playerAtual && linha.includes("Balance:")) {
-                const balMatch = linha.match(/Balance:\s*([\d,]+)/);
-                if (balMatch) {
-                    const valor = parseFloat(balMatch[1].replace(/,/g, '')) / 1000000;
-                    jogadores.push({ nome: playerAtual, balance: valor });
-                    totalBalance += valor;
-                    playerAtual = null;
-                }
-            }
-        });
-
-        if (jogadores.length === 0) { alert("Não consegui ler os saldos."); return; }
-
-        const media = totalBalance / jogadores.length;
-        let pagadores = jogadores.filter(j => j.balance > media).map(j => ({...j, dif: j.balance - media}));
-        let recebedores = jogadores.filter(j => j.balance < media).map(j => ({...j, dif: media - j.balance}));
-
-        let listaTransacoes = [];
-        pagadores.forEach(p => {
-            recebedores.forEach(r => {
-                if (p.dif > 0.001 && r.dif > 0.001) {
-                    let valor = Math.min(p.dif, r.dif);
-                    listaTransacoes.push(`${p.nome} to pay ${valor.toFixed(2)}kk to ${r.nome} (Bank: transfer ${Math.floor(valor*1000000)} to ${r.nome})`);
-                    p.dif -= valor; r.dif -= valor;
-                }
-            });
-        });
-
-        let html = `<div style="color: #e2e8f0; font-family: sans-serif;">`;
-        listaTransacoes.forEach(t => {
-            html += `<div style="margin-bottom: 8px; background: #1e293b; padding: 10px; border-radius: 4px; display: flex; justify-content: space-between;">
-                        <span>${t}</span>
-                        <button onclick="navigator.clipboard.writeText('${t}')" style="cursor:pointer;">Copy</button>
-                     </div>`;
-        });
-
-        let infoXp = xp ? ` | XP: ${xp}kk` : "";
-        html += `<div style="margin-top: 15px; border-top: 1px solid #334155; padding-top: 10px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span>Total profit: <b>${totalBalance.toFixed(2)}kk</b>${infoXp} | Média por player: <b>${media.toFixed(2)}kk</b></span>
-                        <button onclick="enviarParaPlanilha('${xp || 0}kk', '${media.toFixed(2)}kk')" 
-                                style="cursor:pointer; padding: 2px 10px;">Send</button>
-                    </div>
-                 </div>
-                 <button id="btnCopyDiscord" style="margin-top: 15px; width: 100%; padding: 10px; cursor:pointer;">Copy all to Discord!</button>
-                 </div>`;
-        
-        resultadoDiv.innerHTML = html;
-
-        document.getElementById('btnCopyDiscord').addEventListener('click', () => {
-            const textoDiscord = listaTransacoes.join('\n') + `\n\nTotal profit: ${totalBalance.toFixed(2)}kk${infoXp}~ which is: ${media.toFixed(2)}kk~ for each player.`;
-            navigator.clipboard.writeText(textoDiscord);
-            alert("Copiado!");
-        });
-        // ... (o código anterior que te passei)
-
-        // Botão para limpar tudo
-        const btnClear = document.createElement('button');
-        btnClear.innerText = "Clear";
-        btnClear.style.marginTop = "10px";
-        btnClear.style.width = "100%";
-        btnClear.style.padding = "10px";
-        btnClear.style.cursor = "pointer";
-        btnClear.style.backgroundColor = "#991b1b"; // Vermelho escuro para indicar apagar
-        btnClear.style.color = "white";
-        btnClear.style.border = "none";
-        btnClear.style.borderRadius = "4px";
-        
-        btnClear.addEventListener('click', () => {
-            document.getElementById('logInputPt').value = "";
-            document.getElementById('xpInputPt').value = "";
-            resultadoDiv.innerHTML = "";
-        });
-
-        resultadoDiv.appendChild(btnClear);
-    });
-}
-    
-
-// Substitua a função atual por esta abaixo:
-function enviarParaPlanilha(xp, media) {
-    if (!usuarioAtualUid) {
-        alert("Usuário não identificado.");
-        return;
-    }
-
-    const dataAtual = new Date();
-    const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-
-    // Adiciona como uma entrada na tabela de hunts
-    database.ref(`users/${usuarioAtualUid}/hunts`).push().set({
-        data: dataAtual.toLocaleDateString('pt-BR'),
-        mes: mesesNomes[dataAtual.getMonth()],
-        balanceOriginal: parseFloat(media.replace('kk', '')),
-        custoBoost: 0, // Custo zero para PT
-        profitReal: parseFloat(media.replace('kk', '')),
-        xpGanha: parseFloat(xp.replace('kk', '')),
-        timestamp: firebase.database.ServerValue.TIMESTAMP
-    }).then(() => {
-        alert("Dados da PT enviados para a tabela com sucesso!");
-        // O banco de dados dispara o listener automaticamente e atualiza a tabela
-    }).catch(erro => {
-        alert("Erro ao enviar: " + erro.message);
-    });
-}
 function removerHunt(huntId) {
     if (confirm("Tem certeza que deseja apagar esta hunt?")) {
         database.ref(`users/${usuarioAtualUid}/hunts/${huntId}`).remove()

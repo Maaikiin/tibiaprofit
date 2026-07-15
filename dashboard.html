@@ -62,10 +62,6 @@
                 <p id="totalProfit">0.00 kk</p>
             </div>
             <div class="card">
-                <h3>Total Anual XP</h3>
-                <p id="totalXP">0.00 kk</p>
-            </div>
-            <div class="card">
                 <h3>Total Drops</h3>
                 <p id="totalDropsValue">0.00 kk</p>
             </div>
@@ -81,29 +77,23 @@
             <button class="tab-btn" data-tab="drops">Lançar Drops Raros</button>
             <button class="tab-btn" data-tab="compras">Lançar Gastos/Compras</button>
             <button class="tab-btn" data-tab="resumo">Resumo Mensal</button>
-            <button class="tab-btn" data-tab="pt">Calculadora PT</button>
         </div>
 
         <!-- ABA 1: CALCULADORA -->
         <div id="tab-calculadora" class="tab-content active">
             <div class="grid-inputs">
                 <div class="input-box" style="flex: 2;">
-                    <label for="logInput">Cole aqui o texto completo do Session Analyser:</label>
+                    <label for="logInput">Cole aqui o log completo do Session Analyser (Hunt Solo ou Party Hunt — detecção automática):</label>
                     <textarea id="logInput" placeholder="Cole o log do Tibia aqui..."></textarea>
                 </div>
                 <div class="input-box">
-                    <label for="boosts">Quantidade de Boosts usados:</label>
-                    <select id="boosts">
-                        <option value="0">Nenhum boost</option>
-                        <option value="1">1 Boost (30 TC)</option>
-                        <option value="2">2 Boosts (75 TC)</option>
-                        <option value="3">3 Boosts (165 TC)</option>
-                        <option value="4">4 Boosts (345 TC)</option>
-                        <option value="5">5+ Boosts (705 TC)</option>
-                    </select>
-                    <button id="btnCalcular" class="dash-btn" style="margin-top: auto; padding: 15px;">Calcular e Enviar Hunt</button>
+                    <label for="profitIndividual">Profit Individual (kk) — preencha se não for colar o log:</label>
+                    <input type="number" id="profitIndividual" step="0.01" placeholder="Ex: 12.50">
+                    <button id="btnCalcular" class="dash-btn" style="margin-top: auto; padding: 15px;">Calcular Hunt</button>
                 </div>
             </div>
+
+            <div id="resultadoDivisaoPt" style="margin-top: 20px;"></div>
 
             <h3>Histórico de Hunts Enviadas</h3>
             <table>
@@ -114,28 +104,12 @@
                         <th>Balance Original</th>
                         <th>Custo do Boost</th>
                         <th>Profit Real</th>
-                        <th>XP Ganha</th>
                     </tr>
                 </thead>
                 <tbody id="corpoHunts">
                     <tr></tr>
                 </tbody>
             </table>
-        </div>
-
-        <!-- ABA NOVA: CALCULADORA PT -->
-        <div id="tab-pt" class="tab-content">
-            <div class="input-box">
-                <label>Cole o log da Party Hunt:</label>
-                <textarea id="logInputPt" placeholder="Cole o log da PT aqui..." style="height: 150px;"></textarea>
-                
-                <label for="xpInputPt" style="margin-top:10px; display:block;">XP Total da Hunt (em kk):</label>
-                <input type="number" id="xpInputPt" step="0.1" placeholder="Ex: 150.5" style="width: 100%; padding: 10px; margin-bottom: 10px;">
-                
-                <button id="btnCalcularPt" class="dash-btn" style="width:100%;">Calcular Divisão PT</button>
-            </div>
-            <div id="resultadoDivisaoPt" style="margin-top: 20px; padding: 15px; background: #1e293b; border-radius: 8px; color: white;">
-            </div>
         </div>
 
         <!-- ABA 2: DROPS RAROS -->
@@ -206,7 +180,6 @@
                     <tr>
                         <th>Mês</th>
                         <th>Profit Líquido Total</th>
-                        <th>XP Total Acumulada</th>
                     </tr>
                 </thead>
                 <tbody id="corpoResumo">
@@ -217,9 +190,6 @@
             <div class="charts-container">
                 <div class="chart-wrapper">
                     <canvas id="chartProfit"></canvas>
-                </div>
-                <div class="chart-wrapper">
-                    <canvas id="chartXP"></canvas>
                 </div>
             </div>
         </div>
