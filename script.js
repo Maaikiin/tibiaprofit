@@ -240,7 +240,11 @@ if (btnCalcular) {
                 recebedores.forEach(r => {
                     if (p.dif > 0.001 && r.dif > 0.001) {
                         let valor = Math.min(p.dif, r.dif);
-                        listaTransacoes.push(`${p.nome} to pay ${valor.toFixed(2)}kk to ${r.nome} (Bank: transfer ${Math.floor(valor*1000000)} to ${r.nome})`);
+                        const comando = `transfer ${Math.floor(valor*1000000)} to ${r.nome}`;
+                        listaTransacoes.push({
+                            texto: `${p.nome} to pay ${valor.toFixed(2)}kk to ${r.nome} (Bank: ${comando})`,
+                            comando: comando
+                        });
                         p.dif -= valor; r.dif -= valor;
                     }
                 });
@@ -249,8 +253,8 @@ if (btnCalcular) {
             let html = `<div style="padding: 15px; background: #1e293b; border-radius: 8px; color: #e2e8f0; font-family: sans-serif;">`;
             listaTransacoes.forEach(t => {
                 html += `<div style="margin-bottom: 8px; background: #15181f; padding: 10px; border-radius: 4px; display: flex; justify-content: space-between;">
-                            <span>${t}</span>
-                            <button onclick="navigator.clipboard.writeText('${t}')" style="cursor:pointer;">Copy</button>
+                            <span>${t.texto}</span>
+                            <button onclick="navigator.clipboard.writeText('${t.comando}')" style="cursor:pointer;">Copy</button>
                          </div>`;
             });
 
@@ -274,7 +278,7 @@ if (btnCalcular) {
             });
 
             document.getElementById('btnCopyDiscord').addEventListener('click', () => {
-                const textoDiscord = listaTransacoes.join('\n') + `\n\nTotal profit: ${totalBalance.toFixed(2)}kk~ which is: ${media.toFixed(2)}kk~ for each player.`;
+                const textoDiscord = listaTransacoes.map(t => t.texto).join('\n') + `\n\nTotal profit: ${totalBalance.toFixed(2)}kk~ which is: ${media.toFixed(2)}kk~ for each player.`;
                 navigator.clipboard.writeText(textoDiscord);
                 alert("Copiado!");
             });
