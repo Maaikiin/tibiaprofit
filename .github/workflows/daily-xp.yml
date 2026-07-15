@@ -1,0 +1,25 @@
+name: Atualizar XP Diario
+on:
+  schedule:
+    - cron: '0 10 * * *' # Roda às 07:00 no horário de Brasília (10:00 UTC)
+  workflow_dispatch: # Permite rodar manualmente para testar
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Instalar dependências
+        run: npm install firebase-admin node-fetch
+
+      - name: Rodar script de atualização
+        env:
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/atualizar-xp.js
