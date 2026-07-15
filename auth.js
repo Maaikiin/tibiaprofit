@@ -47,25 +47,38 @@ if (loginForm) {
     });
 }
 
-// Botão de Cadastro (Opcional - caso queira criar contas novas)
-const btnCadastro = document.getElementById('btnCadastro');
-if (btnCadastro) {
-    btnCadastro.addEventListener('click', () => {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
+// Formulário de Registro (usado em register.html)
+const registerForm = document.getElementById('registerForm');
+const registerErro = document.getElementById('registerErro');
 
-        if (!email || !password) {
-            alert('Preencha os campos para poder cadastrar uma nova conta.');
+if (registerForm) {
+    registerForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const email = document.getElementById('regEmail').value;
+        const password = document.getElementById('regPassword').value;
+        const passwordConfirm = document.getElementById('regPasswordConfirm').value;
+
+        if (registerErro) registerErro.style.display = 'none';
+
+        if (password !== passwordConfirm) {
+            if (registerErro) {
+                registerErro.innerText = "As senhas não coincidem.";
+                registerErro.style.display = 'block';
+            }
             return;
         }
 
         auth.createUserWithEmailAndPassword(email, password)
             .then((userCredential) => {
-                alert('Conta criada com sucesso! Redirecionando...');
                 window.location.href = "dashboard.html";
             })
             .catch((error) => {
-                alert('Erro ao registrar: ' + error.message);
+                console.error(error);
+                if (registerErro) {
+                    registerErro.innerText = "Erro ao registrar: " + error.message;
+                    registerErro.style.display = 'block';
+                }
             });
     });
 }

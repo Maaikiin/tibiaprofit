@@ -46,28 +46,6 @@ if (btnSair) {
     });
 }
 
-const btnResetarDados = document.getElementById('btnResetarDados');
-if (btnResetarDados) {
-    btnResetarDados.addEventListener('click', () => {
-        if (!usuarioAtualUid) {
-            alert('Usuário não identificado.');
-            return;
-        }
-
-        const confirmarExclusao = confirm("ATENÇÃO:\n\nIsso apagará permanentemente todas as suas Hunts, Drops e Compras do banco de dados!\n\nTem certeza absoluta que deseja resetar suas informações?");
-        
-        if (confirmarExclusao) {
-            database.ref(`users/${usuarioAtualUid}`).remove()
-                .then(() => {
-                    alert('Todos os seus dados foram resetados com sucesso!');
-                })
-                .catch((erro) => {
-                    alert('Erro ao resetar os dados: ' + erro.message);
-                });
-        }
-    });
-}
-
 // ==========================================================================
 // SISTEMA DE ABAS (NAVEGAÇÃO)
 // ==========================================================================
@@ -99,30 +77,53 @@ function carregarDadosDoUsuario() {
     if (!usuarioAtualUid) return;
 
     carregarInfoChar();
+    carregarBoostados();
 
-    database.ref(`users/${usuarioAtualUid}/hunts`).on('value', (snapshot) => {
-        todasAsHunts = [];
+    const refHunts = database.ref(`users/${usuarioAtualUid}/hunts`);
+    const refDrops = database.ref(`users/${usuarioAtualUid}/drops`);
+    const refCompras = database.ref(`users/${usuarioAtualUid}/compras`);
+
+    const snapshotParaLista = (snapshot) => {
+        const lista = [];
         snapshot.forEach((childSnapshot) => {
-            todasAsHunts.push({ id: childSnapshot.key, ...childSnapshot.val() });
+            lista.push({ id: childSnapshot.key, ...childSnapshot.val() });
         });
+        return lista;
+    };
+
+    // Carrega os 3 nós de uma vez só primeiro — garante que os cards de total
+    // já aparecem certos assim que a página carrega, sem depender de qual
+    // dos três chega primeiro pelo tempo real.
+    Promise.all([refHunts.once('value'), refDrops.once('value'), refCompras.once('value')])
+        .then(([snapHunts, snapDrops, snapCompras]) => {
+            todasAsHunts = snapshotParaLista(snapHunts);
+            todosOsDrops = snapshotParaLista(snapDrops);
+            todasAsCompras = snapshotParaLista(snapCompras);
+
+            atualizarTabelaHunts();
+            atualizarTabelaDrops();
+            atualizarTabelaCompras();
+            atualizarResumoMensalETotais();
+        })
+        .catch((erro) => {
+            console.error('Erro ao carregar dados iniciais:', erro);
+        });
+
+    // A partir daqui, mantém tudo atualizado em tempo real
+    refHunts.on('value', (snapshot) => {
+        todasAsHunts = snapshotParaLista(snapshot);
         atualizarTabelaHunts();
         atualizarResumoMensalETotais();
     });
 
-    database.ref(`users/${usuarioAtualUid}/drops`).on('value', (snapshot) => {
-        todosOsDrops = [];
-        snapshot.forEach((childSnapshot) => {
-            todosOsDrops.push({ id: childSnapshot.key, ...childSnapshot.val() });
-        });
+    refDrops.on('value', (snapshot) => {
+        todosOsDrops = snapshotParaLista(snapshot);
         atualizarTabelaDrops();
         atualizarResumoMensalETotais();
     });
 
-    database.ref(`users/${usuarioAtualUid}/compras`).on('value', (snapshot) => {
-        todasAsCompras = [];
-        snapshot.forEach((childSnapshot) => {
-            todasAsCompras.push({ id: childSnapshot.key, ...childSnapshot.val() });
-        });
+    refCompras.on('value', (snapshot) => {
+        todasAsCompras = snapshotParaLista(snapshot);
         atualizarTabelaCompras();
         atualizarResumoMensalETotais();
     });
@@ -418,7 +419,8 @@ function atualizarTabelaDrops() {
     [...todosOsDrops].reverse().forEach(drop => {
         // O Fandom prefere o nome com a primeira letra maiúscula e espaços mantidos
         // Exemplo: "Magic Plate Armor"
-        const nomeFormatado = drop.item.trim();
+        const nomeFormatado = (drop.item || '').trim();
+        const nomeExibido = drop.item || '(sem nome)';
         
         // Esta URL busca a imagem diretamente do servidor de arquivos do Fandom
         // Eles usam um sistema de busca interna que redireciona para a imagem
@@ -432,9 +434,9 @@ function atualizarTabelaDrops() {
                 <img src="${urlImagem}" 
                      onerror="this.style.display='none'" 
                      style="width: 32px; height: 32px; vertical-align: middle; margin-right: 8px;">
-                ${drop.item}
+                ${nomeExibido}
             </td>
-            <td style="color: #e2b45c; font-weight: bold;">+${parseFloat(drop.valor).toFixed(2)} kk</td>
+            <td style="color: #e2b45c; font-weight: bold;">+${parseFloat(drop.valor || 0).toFixed(2)} kk</td>
             <td>
                 <button onclick="removerDrop('${drop.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
             </td>
@@ -451,7 +453,8 @@ function atualizarTabelaCompras() {
     // Processa a lista de compras
     [...todasAsCompras].reverse().forEach(compra => {
         // Formatação do nome para a URL do Fandom
-        const nomeFormatado = compra.item.trim();
+        const nomeFormatado = (compra.item || '').trim();
+        const nomeExibido = compra.item || '(sem nome)';
         const urlImagem = `https://tibia.fandom.com/wiki/Special:FilePath/${nomeFormatado.replace(/ /g, '_')}.gif`;
 
         const tr = document.createElement('tr');
@@ -462,9 +465,9 @@ function atualizarTabelaCompras() {
                 <img src="${urlImagem}" 
                      onerror="this.style.display='none'" 
                      style="width: 32px; height: 32px; vertical-align: middle; margin-right: 8px;">
-                ${compra.item}
+                ${nomeExibido}
             </td>
-            <td style="color: #ef4444; font-weight: bold;">-${parseFloat(compra.valor).toFixed(2)} kk</td>
+            <td style="color: #ef4444; font-weight: bold;">-${parseFloat(compra.valor || 0).toFixed(2)} kk</td>
             <td>
                 <button onclick="removerCompra('${compra.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
             </td>
@@ -477,9 +480,11 @@ function atualizarTabelaCompras() {
 // CÁLCULO DE TOTAIS E RESUMO MENSAL
 // ==========================================================================
 let graficoProfitInstancia = null;
+let graficoDiarioInstancia = null;
 
 function atualizarResumoMensalETotais() {
     let totalProfitAnual = 0;
+    let totalProfitHuntAnual = 0;
     let totalDropsAnual = 0;
     let totalComprasAnual = 0;
 
@@ -494,6 +499,7 @@ function atualizarResumoMensalETotais() {
     todasAsHunts.forEach(hunt => {
         const p = parseFloat(hunt.profitReal || 0);
         totalProfitAnual += p;
+        totalProfitHuntAnual += p;
         if (resumoMensalEstrutura[hunt.mes]) {
             resumoMensalEstrutura[hunt.mes].profitTotal += p;
         }
@@ -524,6 +530,7 @@ function atualizarResumoMensalETotais() {
     });
 
     // Atualiza elementos de texto
+    if (document.getElementById('totalProfitHunt')) document.getElementById('totalProfitHunt').innerText = `${totalProfitHuntAnual.toFixed(2)} kk`;
     if (document.getElementById('totalProfit')) document.getElementById('totalProfit').innerText = `${totalProfitAnual.toFixed(2)} kk`;
     if (document.getElementById('totalDropsValue')) document.getElementById('totalDropsValue').innerText = `${totalDropsAnual.toFixed(2)} kk`;
     if (document.getElementById('totalComprasValue')) document.getElementById('totalComprasValue').innerText = `${totalComprasAnual.toFixed(2)} kk`;
@@ -536,10 +543,13 @@ function atualizarResumoMensalETotais() {
         const dadosDoMes = resumoMensalEstrutura[mes];
         if (dadosDoMes.profitTotal !== 0) {
             const tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.title = 'Clique para ver o acompanhamento diário deste mês';
             tr.innerHTML = `
                 <td style="color: #d1a140; font-weight: bold;">${mes}</td>
                 <td style="color: ${dadosDoMes.profitTotal >= 0 ? '#00ff66' : '#ff3333'}">${dadosDoMes.profitTotal.toFixed(2)} kk</td>
             `;
+            tr.addEventListener('click', () => mostrarGraficoDiario(mes));
             corpoResumo.appendChild(tr);
         }
     });
@@ -584,6 +594,15 @@ function renderizarGraficosDinamicos(dadosAgrupados, mesesRotulos) {
             responsive: true, 
             maintainAspectRatio: false, 
             layout: { padding: { top: 40, bottom: 10 } }, // Espaço superior aumentado
+            onClick: (evento, elementos) => {
+                if (elementos.length > 0) {
+                    const mesClicado = mesesRotulos[elementos[0].index];
+                    mostrarGraficoDiario(mesClicado);
+                }
+            },
+            onHover: (evento, elementos) => {
+                evento.native.target.style.cursor = elementos.length > 0 ? 'pointer' : 'default';
+            },
             scales: { 
                 y: { 
                     beginAtZero: true,
@@ -604,6 +623,95 @@ function renderizarGraficosDinamicos(dadosAgrupados, mesesRotulos) {
             }
         }
     });
+}
+
+// ==========================================================================
+// ACOMPANHAMENTO DIÁRIO (ao clicar num mês na tabela ou no gráfico mensal)
+// ==========================================================================
+function mostrarGraficoDiario(mes) {
+    const titulo = document.getElementById('tituloGraficoDiario');
+    const container = document.getElementById('containerGraficoDiario');
+    const canvasDiario = document.getElementById('chartDiario');
+
+    if (!canvasDiario) return;
+
+    // Junta Hunts + Drops - Compras daquele mês, agrupado por dia (campo "data": dd/mm/aaaa)
+    const porDia = {};
+    const somarNoDia = (dataStr, valor) => {
+        if (!dataStr) return;
+        porDia[dataStr] = (porDia[dataStr] || 0) + valor;
+    };
+
+    todasAsHunts.filter(h => h.mes === mes).forEach(h => somarNoDia(h.data, parseFloat(h.profitReal || 0)));
+    todosOsDrops.filter(d => d.mes === mes).forEach(d => somarNoDia(d.data, parseFloat(d.valor || 0)));
+    todasAsCompras.filter(c => c.mes === mes).forEach(c => somarNoDia(c.data, -parseFloat(c.valor || 0)));
+
+    const diasOrdenados = Object.keys(porDia).sort((a, b) => {
+        const [da, ma, ya] = a.split('/').map(Number);
+        const [db, mb, yb] = b.split('/').map(Number);
+        return new Date(ya || 0, (ma || 1) - 1, da || 1) - new Date(yb || 0, (mb || 1) - 1, db || 1);
+    });
+
+    if (titulo) {
+        titulo.style.display = 'block';
+        titulo.innerText = diasOrdenados.length > 0
+            ? `Acompanhamento Diário — ${mes}`
+            : `Acompanhamento Diário — ${mes} (sem lançamentos)`;
+    }
+
+    if (diasOrdenados.length === 0) {
+        if (container) container.style.display = 'none';
+        return;
+    }
+
+    const dadosDiarios = diasOrdenados.map(d => porDia[d]);
+
+    if (container) container.style.display = 'block';
+    if (typeof Chart === 'undefined') return;
+
+    if (graficoDiarioInstancia) graficoDiarioInstancia.destroy();
+
+    Chart.register(ChartDataLabels);
+
+    const ctxDiario = canvasDiario.getContext('2d');
+    graficoDiarioInstancia = new Chart(ctxDiario, {
+        type: 'bar',
+        data: {
+            labels: diasOrdenados,
+            datasets: [{
+                label: `Profit Líquido Diário — ${mes} (kk)`,
+                data: dadosDiarios,
+                backgroundColor: dadosDiarios.map(v => v >= 0 ? 'rgba(51, 153, 255, 0.25)' : 'rgba(255, 51, 51, 0.25)'),
+                borderColor: dadosDiarios.map(v => v >= 0 ? '#3399ff' : '#ff3333'),
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { top: 40, bottom: 10 } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    suggestedMin: Math.min(...dadosDiarios, 0),
+                    suggestedMax: Math.max(...dadosDiarios, 0) * 1.2
+                }
+            },
+            plugins: {
+                datalabels: {
+                    display: true,
+                    anchor: 'end',
+                    align: 'top',
+                    offset: 5,
+                    color: (context) => context.dataset.data[context.dataIndex] >= 0 ? '#3399ff' : '#ff3333',
+                    fontWeight: 'bold',
+                    formatter: (value) => value !== 0 ? value.toFixed(2) + ' kk' : ''
+                }
+            }
+        }
+    });
+
+    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function removerHunt(huntId) {
@@ -677,6 +785,44 @@ if (btnCadastrarChar) {
             document.getElementById('menuConfig').style.display = 'none';
         }
     });
+}
+
+// ==========================================================================
+// CRIATURA E BOSS BOOSTADOS DO DIA (API TibiaData)
+// ==========================================================================
+async function carregarBoostados() {
+    const imgCriatura = document.getElementById('imgCriaturaBoostada');
+    const imgBoss = document.getElementById('imgBossBoostado');
+
+    if (imgCriatura) {
+        try {
+            const res = await fetch('https://api.tibiadata.com/v4/creatures');
+            const data = await res.json();
+            const boostada = data.creatures && data.creatures.boosted;
+            if (boostada && boostada.image_url) {
+                imgCriatura.src = boostada.image_url;
+                imgCriatura.title = boostada.name || '';
+                imgCriatura.style.visibility = 'visible';
+            }
+        } catch (e) {
+            console.error('Erro ao carregar criatura boostada:', e);
+        }
+    }
+
+    if (imgBoss) {
+        try {
+            const res = await fetch('https://api.tibiadata.com/v4/boostablebosses');
+            const data = await res.json();
+            const bossBoostado = data.boostable_bosses && data.boostable_bosses.boosted;
+            if (bossBoostado && bossBoostado.image_url) {
+                imgBoss.src = bossBoostado.image_url;
+                imgBoss.title = bossBoostado.name || '';
+                imgBoss.style.visibility = 'visible';
+            }
+        } catch (e) {
+            console.error('Erro ao carregar boss boostado:', e);
+        }
+    }
 }
 
 async function carregarInfoChar() {

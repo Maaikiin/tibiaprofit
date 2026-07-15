@@ -24,12 +24,12 @@ body {
     min-height: 100vh;
     background-color: #0f0d0b;
     background-image: 
-        radial-gradient(circle at 50% 50%, transparent 40%, rgba(0,0,0,0.8) 100%),
-        linear-gradient(45deg, #161310 25%, transparent 25%), 
-        linear-gradient(-45deg, #161310 25%, transparent 25%), 
-        linear-gradient(45deg, transparent 75%, #161310 75%), 
-        linear-gradient(-45deg, transparent 75%, #161310 75%);
-    background-size: 100% 100%, 30px 30px, 30px 30px, 30px 30px, 30px 30px;
+        linear-gradient(rgba(5, 5, 8, 0.55), rgba(5, 5, 8, 0.75)),
+        url('fankit-assets/background-login.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
     font-family: "Georgia", serif;
 }
 
@@ -72,7 +72,7 @@ body {
 
 .scroll-content {
     width: 100%;
-    padding: 40px 145px;
+    padding: 9% 27% 7%;
 }
 
 .scroll-input-group {
@@ -133,6 +133,13 @@ body {
    ========================================================================== */
 .dashboard-body {
     background-color: #060608;
+    background-image:
+        linear-gradient(rgba(6, 6, 8, 0.88), rgba(6, 6, 8, 0.93)),
+        url('fankit-assets/background-dashboard.jpg');
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
     color: #f1f5f9;
     padding: 30px 15px;
 }
@@ -147,8 +154,15 @@ body {
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
 }
 
-.dash-title {
-    font-family: 'Cinzel', 'Georgia', serif;
+.fankit-header-bar {
+    background-image: url('fankit-assets/header-texture.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    border-radius: 6px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.dash-title {    font-family: 'Cinzel', 'Georgia', serif;
     font-size: 2.2rem;
     font-weight: 700;
     letter-spacing: 1px;

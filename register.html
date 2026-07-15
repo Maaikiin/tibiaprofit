@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tibia Profit Tracker - Registrar</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="favicon.png">
+</head>
+<body class="login-body">
+    <div class="login-container">
+        <!-- Logo em Imagem Oficial -->
+        <header class="tibia-logo-header">
+            <img src="logo.png" alt="Tibia Profit Logo" class="tibia-logo-img">
+            <div style="margin-top: 5px;">
+                <img src="sublogo.png" alt="Descrição" style="max-width: 500px; height: auto;">
+            </div>
+        </header>
+
+        <!-- Container do Pergaminho Horizontal -->
+        <main class="scroll-container">
+            <div class="scroll-content">
+                <form id="registerForm">
+                    <div class="scroll-input-group">
+                        <label for="regEmail">Account Name:</label>
+                        <input type="email" id="regEmail" required autocomplete="username">
+                    </div>
+
+                    <div class="scroll-input-group">
+                        <label for="regPassword">Password:</label>
+                        <input type="password" id="regPassword" required autocomplete="new-password">
+                    </div>
+
+                    <div class="scroll-input-group">
+                        <label for="regPasswordConfirm">Confirm Password:</label>
+                        <input type="password" id="regPasswordConfirm" required autocomplete="new-password">
+                    </div>
+
+                    <div class="scroll-buttons-col">
+                        <button type="submit" id="btnRegistrar" class="scroll-btn">Register</button>
+                        <a href="index.html" id="btnVoltarLogin" class="scroll-btn" style="text-decoration: none; display: flex; align-items: center; justify-content: center;">Back to Login</a>
+                    </div>
+                </form>
+                <p id="registerErro" class="scroll-error-msg" style="display: none;"></p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts do Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <script src="auth.js"></script>
+    <footer style="text-align: center; padding: 20px; color: #64748b; font-family: sans-serif; font-size: 0.9rem; margin-top: 40px; border-top: 1px solid #334155;">
+        <p style="margin: 0;">Feito por <strong>Maikiin</strong></p>
+        <p style="margin: 5px 0 0 0;">Dúvidas, reclamações ou melhorias? Me procure in-game!</p>
+        <p style="margin: 5px 0 0 0;">ATENÇÃO: não utilize o mesmo email que você usa para a sua conta do Tibia!!!</p>
+        <img src="honesto.jpg" alt="Trabalho Honesto Meme" style="max-width: 300px; height: auto; margin-top: 15px; border: 2px solid #475569; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.5);">
+        <p style="margin: 15px 0 0 0; font-size: 0.8rem;">Tibia and all products related to Tibia are copyrighted by CipSoft GmbH. The official website of Tibia is <a href="https://tibia.com/" target="_blank" style="color: #94a3b8;">tibia.com</a>.</p>
+        <p style="margin: 5px 0 0 0; font-size: 0.8rem;">Criado por Maicon.</p>
+        <p style="margin: 5px 0 0 0; font-size: 0.8rem;">Contato através do admintibiaprofit@gmail.com</p>
+    </footer>
+</body>
+</html>
