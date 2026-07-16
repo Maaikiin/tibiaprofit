@@ -211,7 +211,7 @@ if (btnCalcular) {
 
             linhasLog.forEach(linha => {
                 if (linha.trim() && !linha.startsWith('\t') && !linha.startsWith(' ') && !["Session", "Loot", "Supplies", "Balance"].some(p => linha.includes(p))) {
-                    playerAtual = linha.trim();
+                    playerAtual = linha.trim().replace(/\s*\([^)]*\)\s*$/, '');
                 }
                 if (playerAtual && linha.includes("Balance:")) {
                     const balMatch = linha.match(/Balance:\s*([\d,]+)/);
