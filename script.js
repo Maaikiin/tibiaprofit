@@ -646,25 +646,42 @@ function mostrarGraficoDiario(mes) {
     todosOsDrops.filter(d => d.mes === mes).forEach(d => somarNoDia(d.data, parseFloat(d.valor || 0)));
     todasAsCompras.filter(c => c.mes === mes).forEach(c => somarNoDia(c.data, -parseFloat(c.valor || 0)));
 
-    const diasOrdenados = Object.keys(porDia).sort((a, b) => {
-        const [da, ma, ya] = a.split('/').map(Number);
-        const [db, mb, yb] = b.split('/').map(Number);
-        return new Date(ya || 0, (ma || 1) - 1, da || 1) - new Date(yb || 0, (mb || 1) - 1, db || 1);
-    });
+    const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const indiceMes = mesesNomes.indexOf(mes);
+
+    // Descobre o ano a partir de algum lançamento existente naquele mês; se não achar, usa o ano atual
+    let anoDetectado = new Date().getFullYear();
+    const chaveComData = Object.keys(porDia)[0];
+    if (chaveComData) {
+        const partesData = chaveComData.split('/');
+        if (partesData[2]) anoDetectado = parseInt(partesData[2]);
+    }
+
+    // Gera TODOS os dias do mês, com 0 pros dias sem lançamento — mantém a estética do gráfico consistente
+    const diasNoMes = indiceMes >= 0 ? new Date(anoDetectado, indiceMes + 1, 0).getDate() : 30;
+    const diasOrdenados = [];
+    for (let d = 1; d <= diasNoMes; d++) {
+        const diaStr = String(d).padStart(2, '0');
+        const mesStr = String(indiceMes + 1).padStart(2, '0');
+        diasOrdenados.push(`${diaStr}/${mesStr}/${anoDetectado}`);
+    }
+
+    const houveLancamento = Object.keys(porDia).length > 0;
 
     if (titulo) {
         titulo.style.display = 'block';
-        titulo.innerText = diasOrdenados.length > 0
+        titulo.innerText = houveLancamento
             ? `Acompanhamento Diário — ${mes}`
             : `Acompanhamento Diário — ${mes} (sem lançamentos)`;
     }
 
-    if (diasOrdenados.length === 0) {
+    if (!houveLancamento) {
         if (container) container.style.display = 'none';
         return;
     }
 
-    const dadosDiarios = diasOrdenados.map(d => porDia[d]);
+    const dadosDiarios = diasOrdenados.map(d => porDia[d] || 0);
+    const rotulosDias = diasOrdenados.map(d => d.split('/')[0]); // só o número do dia, pro eixo X
 
     if (container) container.style.display = 'block';
     if (typeof Chart === 'undefined') return;
@@ -677,13 +694,16 @@ function mostrarGraficoDiario(mes) {
     graficoDiarioInstancia = new Chart(ctxDiario, {
         type: 'bar',
         data: {
-            labels: diasOrdenados,
+            labels: rotulosDias,
             datasets: [{
                 label: `Profit Líquido Diário — ${mes} (kk)`,
                 data: dadosDiarios,
                 backgroundColor: dadosDiarios.map(v => v >= 0 ? 'rgba(51, 153, 255, 0.25)' : 'rgba(255, 51, 51, 0.25)'),
                 borderColor: dadosDiarios.map(v => v >= 0 ? '#3399ff' : '#ff3333'),
-                borderWidth: 2
+                borderWidth: 2,
+                barPercentage: 0.7,
+                categoryPercentage: 0.85,
+                maxBarThickness: 34
             }]
         },
         options: {
@@ -691,6 +711,9 @@ function mostrarGraficoDiario(mes) {
             maintainAspectRatio: false,
             layout: { padding: { top: 40, bottom: 10 } },
             scales: {
+                x: {
+                    ticks: { autoSkip: false, maxRotation: 0, minRotation: 0 }
+                },
                 y: {
                     beginAtZero: true,
                     suggestedMin: Math.min(...dadosDiarios, 0),
@@ -699,7 +722,7 @@ function mostrarGraficoDiario(mes) {
             },
             plugins: {
                 datalabels: {
-                    display: true,
+                    display: (context) => context.dataset.data[context.dataIndex] !== 0,
                     anchor: 'end',
                     align: 'top',
                     offset: 5,
