@@ -400,7 +400,6 @@ function atualizarTabelaHunts() {
             <td>${hunt.data}</td>
             <td>${hunt.mes}</td>
             <td style="color: ${hunt.balanceOriginal >= 0 ? '#00ff66' : '#ff3333'}">${parseFloat(hunt.balanceOriginal).toFixed(2)} kk</td>
-            <td style="color: #ffaa00;">${parseFloat(hunt.custoBoost).toFixed(2)} kk</td>
             <td style="color: ${hunt.profitReal >= 0 ? '#00ff66' : '#ff3333'}; font-weight: bold;">${parseFloat(hunt.profitReal).toFixed(2)} kk</td>
             <td>
                 <button onclick="removerHunt('${hunt.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
