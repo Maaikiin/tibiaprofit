@@ -335,10 +335,11 @@ const btnLancarDrop = document.getElementById('btnLancarDrop');
 if (btnLancarDrop) {
     btnLancarDrop.addEventListener('click', () => {
         const nomeItem = document.getElementById('dropNome').value;
-        const valorItem = parseFloat(document.getElementById('dropValor').value);
+        const valorCampo = document.getElementById('dropValor').value;
+        const valorItem = valorCampo === '' ? 0 : parseFloat(valorCampo);
 
         if (!nomeItem || isNaN(valorItem)) {
-            alert('Preencha o nome do item e o valor em KK corretamente.');
+            alert('Preencha ao menos o nome do item (o valor pode ficar em branco e ser editado depois).');
             return;
         }
 
@@ -399,7 +400,6 @@ function atualizarTabelaHunts() {
         tr.innerHTML = `
             <td>${hunt.data}</td>
             <td>${hunt.mes}</td>
-            <td style="color: ${hunt.balanceOriginal >= 0 ? '#00ff66' : '#ff3333'}">${parseFloat(hunt.balanceOriginal).toFixed(2)} kk</td>
             <td style="color: ${hunt.profitReal >= 0 ? '#00ff66' : '#ff3333'}; font-weight: bold;">${parseFloat(hunt.profitReal).toFixed(2)} kk</td>
             <td>
                 <button onclick="removerHunt('${hunt.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
@@ -435,12 +435,32 @@ function atualizarTabelaDrops() {
                      style="width: 32px; height: 32px; vertical-align: middle; margin-right: 8px;">
                 ${nomeExibido}
             </td>
-            <td style="color: #e2b45c; font-weight: bold;">+${parseFloat(drop.valor || 0).toFixed(2)} kk</td>
+            <td style="color: ${drop.valor ? '#e2b45c' : '#94a3b8'}; font-weight: bold;">
+                ${drop.valor ? '+' + parseFloat(drop.valor).toFixed(2) + ' kk' : 'Aguardando venda'}
+            </td>
             <td>
+                <button onclick="editarValorDrop('${drop.id}', ${parseFloat(drop.valor || 0)})" style="background: #2563eb; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;">Editar Valor</button>
                 <button onclick="removerDrop('${drop.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
             </td>
         `;
         corpo.appendChild(tr);
+    });
+}
+
+function editarValorDrop(dropId, valorAtual) {
+    const novoValor = prompt('Novo valor de venda (em kk):', valorAtual > 0 ? valorAtual : '');
+    if (novoValor === null) return; // cancelou
+
+    const valorConvertido = parseFloat(novoValor.replace(',', '.'));
+    if (isNaN(valorConvertido)) {
+        alert('Digite um valor numérico válido.');
+        return;
+    }
+
+    database.ref(`users/${usuarioAtualUid}/drops/${dropId}`).update({
+        valor: valorConvertido
+    }).catch((erro) => {
+        alert('Erro ao atualizar o valor: ' + erro.message);
     });
 }
 
