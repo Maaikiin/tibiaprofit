@@ -22,6 +22,9 @@ const database = firebase.database();
 
 let usuarioAtualUid = null;
 let todasAsHunts = [];
+let mesesHuntsExpandidos = new Set();
+let mesesDropsExpandidos = new Set();
+let mesesComprasExpandidos = new Set();
 let todosOsDrops = [];
 let todasAsCompras = [];
 
@@ -389,62 +392,130 @@ if (btnLancarCompra) {
 // ==========================================================================
 // RENDERIZAÇÃO DE TABELAS LOCAIS
 // ==========================================================================
-function atualizarTabelaHunts() {
-    const corpo = document.getElementById('corpoHunts');
-    if (!corpo) return;
-    corpo.innerHTML = '';
-    const huntsInvertidas = [...todasAsHunts].reverse();
+// ==========================================================================
+// ACCORDION MENSAL GENÉRICO (usado nas 3 abas: Hunts, Drops e Compras)
+// ==========================================================================
+function renderizarAccordionMensal(containerId, itens, expandidosSet, cabecalhos, montarLinha, calcularTotalMes, aoAlternar, textoVazio) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
 
-    huntsInvertidas.forEach(hunt => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
+    if (itens.length === 0) {
+        container.innerHTML = `<p style="color:#64748b; padding: 15px 0;">${textoVazio}</p>`;
+        return;
+    }
+
+    // Agrupa os itens por mês
+    const grupos = {};
+    itens.forEach(item => {
+        const mes = item.mes || 'Sem mês';
+        if (!grupos[mes]) grupos[mes] = [];
+        grupos[mes].push(item);
+    });
+
+    // Ordena os meses pelo lançamento mais recente de cada grupo (mês mais ativo primeiro)
+    const mesesOrdenados = Object.keys(grupos).sort((a, b) => {
+        const maxA = Math.max(...grupos[a].map(i => i.timestamp || 0));
+        const maxB = Math.max(...grupos[b].map(i => i.timestamp || 0));
+        return maxB - maxA;
+    });
+
+    container.innerHTML = '';
+
+    mesesOrdenados.forEach(mes => {
+        const itensDoMes = [...grupos[mes]].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        const totalMes = calcularTotalMes(itensDoMes);
+        const aberto = expandidosSet.has(mes);
+
+        const grupoDiv = document.createElement('div');
+        grupoDiv.style.marginBottom = '10px';
+        grupoDiv.style.border = '1px solid #222530';
+        grupoDiv.style.borderRadius = '8px';
+        grupoDiv.style.overflow = 'hidden';
+
+        const header = document.createElement('div');
+        header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:14px 16px; background:#15181f; cursor:pointer; user-select:none;';
+        header.innerHTML = `
+            <span style="font-weight:700; color:#fff;">${mes} <span style="color:#64748b; font-weight:400; font-size:0.85rem;">(${itensDoMes.length} ${itensDoMes.length > 1 ? 'itens' : 'item'})</span></span>
+            <span style="display:flex; align-items:center; gap:12px;">
+                <span style="color: ${totalMes >= 0 ? '#00ff66' : '#ff3333'}; font-weight:700;">${totalMes.toFixed(2)} kk</span>
+                <span style="color:#94a3b8; display:inline-block; transform: rotate(${aberto ? '180' : '0'}deg);">▼</span>
+            </span>
+        `;
+        header.addEventListener('click', () => {
+            if (expandidosSet.has(mes)) expandidosSet.delete(mes); else expandidosSet.add(mes);
+            aoAlternar();
+        });
+
+        const corpoGrupo = document.createElement('div');
+        corpoGrupo.style.display = aberto ? 'block' : 'none';
+
+        const tabela = document.createElement('table');
+        tabela.style.marginTop = '0';
+        tabela.innerHTML = `<thead><tr>${cabecalhos.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody></tbody>`;
+        const tbody = tabela.querySelector('tbody');
+        itensDoMes.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = montarLinha(item);
+            tbody.appendChild(tr);
+        });
+
+        corpoGrupo.appendChild(tabela);
+        grupoDiv.appendChild(header);
+        grupoDiv.appendChild(corpoGrupo);
+        container.appendChild(grupoDiv);
+    });
+}
+
+function atualizarTabelaHunts() {
+    renderizarAccordionMensal(
+        'corpoHunts',
+        todasAsHunts,
+        mesesHuntsExpandidos,
+        ['Data', 'Profit da Hunt', 'Ações'],
+        (hunt) => `
             <td>${hunt.data}</td>
-            <td>${hunt.mes}</td>
             <td style="color: ${hunt.profitReal >= 0 ? '#00ff66' : '#ff3333'}; font-weight: bold;">${parseFloat(hunt.profitReal).toFixed(2)} kk</td>
             <td>
                 <button onclick="removerHunt('${hunt.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
             </td>
-        `;
-        corpo.appendChild(tr);
-    });
+        `,
+        (itensDoMes) => itensDoMes.reduce((soma, h) => soma + parseFloat(h.profitReal || 0), 0),
+        atualizarTabelaHunts,
+        'Nenhuma hunt registrada ainda.'
+    );
 }
 
 function atualizarTabelaDrops() {
-    const corpo = document.getElementById('corpoDrops');
-    if (!corpo) return;
-    
-    corpo.innerHTML = '';
-    
-    [...todosOsDrops].reverse().forEach(drop => {
-        // O Fandom prefere o nome com a primeira letra maiúscula e espaços mantidos
-        // Exemplo: "Magic Plate Armor"
-        const nomeFormatado = (drop.item || '').trim();
-        const nomeExibido = drop.item || '(sem nome)';
-        
-        // Esta URL busca a imagem diretamente do servidor de arquivos do Fandom
-        // Eles usam um sistema de busca interna que redireciona para a imagem
-        const urlImagem = `https://tibia.fandom.com/wiki/Special:FilePath/${nomeFormatado.replace(/ /g, '_')}.gif`;
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${drop.data}</td>
-            <td>${drop.mes}</td>
-            <td>
-                <img src="${urlImagem}" 
-                     onerror="this.style.display='none'" 
-                     style="width: 32px; height: 32px; vertical-align: middle; margin-right: 8px;">
-                ${nomeExibido}
-            </td>
-            <td style="color: ${drop.valor ? '#e2b45c' : '#94a3b8'}; font-weight: bold;">
-                ${drop.valor ? '+' + parseFloat(drop.valor).toFixed(2) + ' kk' : 'Aguardando venda'}
-            </td>
-            <td>
-                <button onclick="editarValorDrop('${drop.id}', ${parseFloat(drop.valor || 0)})" style="background: #2563eb; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;">Editar Valor</button>
-                <button onclick="removerDrop('${drop.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
-            </td>
-        `;
-        corpo.appendChild(tr);
-    });
+    renderizarAccordionMensal(
+        'corpoDrops',
+        todosOsDrops,
+        mesesDropsExpandidos,
+        ['Data', 'Item', 'Valor', 'Ações'],
+        (drop) => {
+            const nomeFormatado = (drop.item || '').trim();
+            const nomeExibido = drop.item || '(sem nome)';
+            const urlImagem = `https://tibia.fandom.com/wiki/Special:FilePath/${nomeFormatado.replace(/ /g, '_')}.gif`;
+            return `
+                <td>${drop.data}</td>
+                <td>
+                    <img src="${urlImagem}" 
+                         onerror="this.style.display='none'" 
+                         style="width: 32px; height: 32px; vertical-align: middle; margin-right: 8px;">
+                    ${nomeExibido}
+                </td>
+                <td style="color: ${drop.valor ? '#e2b45c' : '#94a3b8'}; font-weight: bold;">
+                    ${drop.valor ? '+' + parseFloat(drop.valor).toFixed(2) + ' kk' : 'Aguardando venda'}
+                </td>
+                <td>
+                    <button onclick="editarValorDrop('${drop.id}', ${parseFloat(drop.valor || 0)})" style="background: #2563eb; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;">Editar Valor</button>
+                    <button onclick="removerDrop('${drop.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
+                </td>
+            `;
+        },
+        (itensDoMes) => itensDoMes.reduce((soma, d) => soma + parseFloat(d.valor || 0), 0),
+        atualizarTabelaDrops,
+        'Nenhum drop raro registrado ainda.'
+    );
 }
 
 function editarValorDrop(dropId, valorAtual) {
@@ -465,34 +536,33 @@ function editarValorDrop(dropId, valorAtual) {
 }
 
 function atualizarTabelaCompras() {
-    const corpo = document.getElementById('corpoCompras');
-    if (!corpo) return;
-    corpo.innerHTML = ''; // Limpa a tabela antes de desenhar
-    
-    // Processa a lista de compras
-    [...todasAsCompras].reverse().forEach(compra => {
-        // Formatação do nome para a URL do Fandom
-        const nomeFormatado = (compra.item || '').trim();
-        const nomeExibido = compra.item || '(sem nome)';
-        const urlImagem = `https://tibia.fandom.com/wiki/Special:FilePath/${nomeFormatado.replace(/ /g, '_')}.gif`;
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${compra.data}</td>
-            <td>${compra.mes || '-'}</td>
-            <td>
-                <img src="${urlImagem}" 
-                     onerror="this.style.display='none'" 
-                     style="width: 32px; height: 32px; vertical-align: middle; margin-right: 8px;">
-                ${nomeExibido}
-            </td>
-            <td style="color: #ef4444; font-weight: bold;">-${parseFloat(compra.valor || 0).toFixed(2)} kk</td>
-            <td>
-                <button onclick="removerCompra('${compra.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
-            </td>
-        `;
-        corpo.appendChild(tr);
-    });
+    renderizarAccordionMensal(
+        'corpoCompras',
+        todasAsCompras,
+        mesesComprasExpandidos,
+        ['Data', 'Item/Descrição', 'Valor Investido', 'Ações'],
+        (compra) => {
+            const nomeFormatado = (compra.item || '').trim();
+            const nomeExibido = compra.item || '(sem nome)';
+            const urlImagem = `https://tibia.fandom.com/wiki/Special:FilePath/${nomeFormatado.replace(/ /g, '_')}.gif`;
+            return `
+                <td>${compra.data}</td>
+                <td>
+                    <img src="${urlImagem}" 
+                         onerror="this.style.display='none'" 
+                         style="width: 32px; height: 32px; vertical-align: middle; margin-right: 8px;">
+                    ${nomeExibido}
+                </td>
+                <td style="color: #ef4444; font-weight: bold;">-${parseFloat(compra.valor || 0).toFixed(2)} kk</td>
+                <td>
+                    <button onclick="removerCompra('${compra.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
+                </td>
+            `;
+        },
+        (itensDoMes) => -itensDoMes.reduce((soma, c) => soma + parseFloat(c.valor || 0), 0),
+        atualizarTabelaCompras,
+        'Nenhuma compra registrada ainda.'
+    );
 }
 
 // ==========================================================================
