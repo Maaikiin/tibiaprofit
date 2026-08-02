@@ -22,6 +22,9 @@ const database = firebase.database();
 
 let usuarioAtualUid = null;
 let todasAsHunts = [];
+let todasAsPtHunts = [];
+let ptHuntsExpandidas = new Set();
+let mesesPtHuntsExpandidos = new Set();
 let mesesHuntsExpandidos = new Set();
 let mesesDropsExpandidos = new Set();
 let mesesComprasExpandidos = new Set();
@@ -85,6 +88,7 @@ function carregarDadosDoUsuario() {
     const refHunts = database.ref(`users/${usuarioAtualUid}/hunts`);
     const refDrops = database.ref(`users/${usuarioAtualUid}/drops`);
     const refCompras = database.ref(`users/${usuarioAtualUid}/compras`);
+    const refPtHunts = database.ref(`users/${usuarioAtualUid}/ptHunts`);
 
     const snapshotParaLista = (snapshot) => {
         const lista = [];
@@ -94,18 +98,20 @@ function carregarDadosDoUsuario() {
         return lista;
     };
 
-    // Carrega os 3 nós de uma vez só primeiro — garante que os cards de total
+    // Carrega os nós de uma vez só primeiro — garante que os cards de total
     // já aparecem certos assim que a página carrega, sem depender de qual
-    // dos três chega primeiro pelo tempo real.
-    Promise.all([refHunts.once('value'), refDrops.once('value'), refCompras.once('value')])
-        .then(([snapHunts, snapDrops, snapCompras]) => {
+    // deles chega primeiro pelo tempo real.
+    Promise.all([refHunts.once('value'), refDrops.once('value'), refCompras.once('value'), refPtHunts.once('value')])
+        .then(([snapHunts, snapDrops, snapCompras, snapPtHunts]) => {
             todasAsHunts = snapshotParaLista(snapHunts);
             todosOsDrops = snapshotParaLista(snapDrops);
             todasAsCompras = snapshotParaLista(snapCompras);
+            todasAsPtHunts = snapshotParaLista(snapPtHunts);
 
             atualizarTabelaHunts();
             atualizarTabelaDrops();
             atualizarTabelaCompras();
+            atualizarTabelaPtHunts();
             atualizarResumoMensalETotais();
         })
         .catch((erro) => {
@@ -117,6 +123,11 @@ function carregarDadosDoUsuario() {
         todasAsHunts = snapshotParaLista(snapshot);
         atualizarTabelaHunts();
         atualizarResumoMensalETotais();
+    });
+
+    refPtHunts.on('value', (snapshot) => {
+        todasAsPtHunts = snapshotParaLista(snapshot);
+        atualizarTabelaPtHunts();
     });
 
     refDrops.on('value', (snapshot) => {
@@ -275,6 +286,7 @@ if (btnCalcular) {
 
             document.getElementById('btnEnviarPt').addEventListener('click', () => {
                 salvarHunt(media, 0, media, () => {
+                    salvarPtHunt(jogadores, listaTransacoes, totalBalance, media);
                     document.getElementById('logInput').value = '';
                     resultadoDiv.innerHTML = '';
                     alert('Party Hunt processada e salva com sucesso!');
@@ -328,6 +340,25 @@ function salvarHunt(balanceOriginal, custoBoostKk, profitReal, callback) {
         if (callback) callback();
     }).catch(erro => {
         alert('Erro ao salvar no banco: ' + erro.message);
+    });
+}
+
+function salvarPtHunt(jogadores, transacoes, totalBalance, media) {
+    const dataAtual = new Date();
+    const dataFormatada = dataAtual.toLocaleDateString('pt-BR');
+    const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const nomeMesAtual = mesesNomes[dataAtual.getMonth()];
+
+    database.ref(`users/${usuarioAtualUid}/ptHunts`).push().set({
+        data: dataFormatada,
+        mes: nomeMesAtual,
+        jogadores: jogadores.map(j => ({ nome: j.nome, balance: parseFloat(j.balance) })),
+        transacoes: transacoes.map(t => ({ texto: t.texto, comando: t.comando })),
+        totalBalance: parseFloat(totalBalance),
+        media: parseFloat(media),
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    }).catch(erro => {
+        console.error('Erro ao salvar histórico da PT hunt:', erro);
     });
 }
 
@@ -483,6 +514,184 @@ function atualizarTabelaHunts() {
         atualizarTabelaHunts,
         'Nenhuma hunt registrada ainda.'
     );
+}
+
+// ==========================================================================
+// HISTÓRICO DE PT HUNT (accordion — cada hunt abre/fecha individualmente)
+// ==========================================================================
+function chaveMesAnoPtHunt(pt) {
+    if (pt.data) {
+        const partes = pt.data.split('/');
+        if (partes.length === 3 && partes[1] && partes[2]) {
+            const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+            const mesIdx = parseInt(partes[1], 10) - 1;
+            const nomeMes = mesesNomes[mesIdx] || pt.mes || 'Mês desconhecido';
+            return `${nomeMes} de ${partes[2]}`;
+        }
+    }
+    return pt.mes || 'Mês desconhecido';
+}
+
+function atualizarTabelaPtHunts() {
+    const container = document.getElementById('corpoPtHunts');
+    if (!container) return;
+
+    if (todasAsPtHunts.length === 0) {
+        container.innerHTML = '<p style="color:#64748b; padding: 15px 0;">Nenhuma Party Hunt registrada ainda.</p>';
+        return;
+    }
+
+    // Agrupa as PT hunts por mês/ano
+    const grupos = {};
+    todasAsPtHunts.forEach(pt => {
+        const chave = chaveMesAnoPtHunt(pt);
+        if (!grupos[chave]) grupos[chave] = [];
+        grupos[chave].push(pt);
+    });
+
+    // Ordena os grupos pelo lançamento mais recente (mês/ano mais ativo primeiro)
+    const gruposOrdenados = Object.keys(grupos).sort((a, b) => {
+        const maxA = Math.max(...grupos[a].map(p => p.timestamp || 0));
+        const maxB = Math.max(...grupos[b].map(p => p.timestamp || 0));
+        return maxB - maxA;
+    });
+
+    container.innerHTML = '';
+
+    gruposOrdenados.forEach(chaveMesAno => {
+        const ptHuntsDoGrupo = [...grupos[chaveMesAno]].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        const mediaTotalGrupo = ptHuntsDoGrupo.reduce((soma, p) => soma + parseFloat(p.media || 0), 0);
+        const abertoGrupo = mesesPtHuntsExpandidos.has(chaveMesAno);
+
+        const grupoDiv = document.createElement('div');
+        grupoDiv.style.cssText = 'margin-bottom:10px; border:1px solid #222530; border-radius:8px; overflow:hidden;';
+
+        const headerGrupo = document.createElement('div');
+        headerGrupo.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:14px 16px; background:#15181f; cursor:pointer; user-select:none;';
+        headerGrupo.innerHTML = `
+            <span style="font-weight:700; color:#fff;">${chaveMesAno} <span style="color:#64748b; font-weight:400; font-size:0.85rem;">(${ptHuntsDoGrupo.length} party hunt${ptHuntsDoGrupo.length !== 1 ? 's' : ''})</span></span>
+            <span style="display:flex; align-items:center; gap:12px;">
+                <span style="color:#00ff66; font-weight:700;">Soma das médias: ${mediaTotalGrupo.toFixed(2)} kk</span>
+                <span style="color:#94a3b8; display:inline-block; transform: rotate(${abertoGrupo ? '180' : '0'}deg);">▼</span>
+            </span>
+        `;
+        headerGrupo.addEventListener('click', () => {
+            if (mesesPtHuntsExpandidos.has(chaveMesAno)) mesesPtHuntsExpandidos.delete(chaveMesAno); else mesesPtHuntsExpandidos.add(chaveMesAno);
+            atualizarTabelaPtHunts();
+        });
+
+        const corpoGrupo = document.createElement('div');
+        corpoGrupo.style.cssText = `display:${abertoGrupo ? 'block' : 'none'}; padding:10px; background:#0a0b0d;`;
+
+        ptHuntsDoGrupo.forEach(pt => {
+            corpoGrupo.appendChild(montarCardPtHunt(pt));
+        });
+
+        grupoDiv.appendChild(headerGrupo);
+        grupoDiv.appendChild(corpoGrupo);
+        container.appendChild(grupoDiv);
+    });
+}
+
+function montarCardPtHunt(pt) {
+    const jogadores = pt.jogadores || [];
+    const transacoes = pt.transacoes || [];
+    const aberto = ptHuntsExpandidas.has(pt.id);
+
+    const card = document.createElement('div');
+    card.style.cssText = 'margin-bottom:10px; border:1px solid #222530; border-radius:8px; overflow:hidden;';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:14px 16px; background:#15181f; cursor:pointer; user-select:none;';
+    header.innerHTML = `
+        <span style="font-weight:700; color:#fff;">${pt.data || '-'} <span style="color:#64748b; font-weight:400; font-size:0.85rem;">(${jogadores.length} jogador${jogadores.length !== 1 ? 'es' : ''})</span></span>
+        <span style="display:flex; align-items:center; gap:12px;">
+            <span style="color:#00ff66; font-weight:700;">Média: ${parseFloat(pt.media || 0).toFixed(2)} kk</span>
+            <span style="color:#94a3b8; display:inline-block; transform: rotate(${aberto ? '180' : '0'}deg);">▼</span>
+        </span>
+    `;
+    header.addEventListener('click', () => {
+        if (ptHuntsExpandidas.has(pt.id)) ptHuntsExpandidas.delete(pt.id); else ptHuntsExpandidas.add(pt.id);
+        atualizarTabelaPtHunts();
+    });
+
+    const corpo = document.createElement('div');
+    corpo.style.display = aberto ? 'block' : 'none';
+    corpo.style.padding = '15px';
+    corpo.style.background = '#0f1115';
+
+    const tabelaJogadores = document.createElement('table');
+    tabelaJogadores.style.marginTop = '0';
+    tabelaJogadores.innerHTML = `
+        <thead><tr><th>Jogador</th><th>Balance</th></tr></thead>
+        <tbody>
+            ${jogadores.map(j => `<tr><td>${j.nome}</td><td style="color:${j.balance >= 0 ? '#00ff66' : '#ff3333'}; font-weight:bold;">${parseFloat(j.balance).toFixed(2)} kk</td></tr>`).join('')}
+        </tbody>
+    `;
+    corpo.appendChild(tabelaJogadores);
+
+    if (transacoes.length > 0) {
+        const transDiv = document.createElement('div');
+        transDiv.style.marginTop = '15px';
+
+        transacoes.forEach(t => {
+            const texto = typeof t === 'string' ? t : t.texto;
+            const comando = typeof t === 'string' ? extrairComandoDoTexto(t) : t.comando;
+
+            const linha = document.createElement('div');
+            linha.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 10px; margin-bottom:6px; background:#15181f; border-radius:4px; color:#cbd5e1; font-size:0.9rem;';
+            linha.innerHTML = `<span>${texto}</span>`;
+
+            const btnCopy = document.createElement('button');
+            btnCopy.innerText = 'Copy';
+            btnCopy.style.cssText = 'cursor:pointer; flex-shrink:0;';
+            btnCopy.addEventListener('click', () => navigator.clipboard.writeText(comando || texto));
+            linha.appendChild(btnCopy);
+
+            transDiv.appendChild(linha);
+        });
+
+        const totalDiv = document.createElement('div');
+        totalDiv.style.cssText = 'margin-top: 10px; border-top: 1px solid #334155; padding-top: 10px; color: #e2e8f0; font-size: 0.9rem;';
+        totalDiv.innerHTML = `Total profit: <b>${parseFloat(pt.totalBalance || 0).toFixed(2)}kk</b> | Média por player: <b>${parseFloat(pt.media || 0).toFixed(2)}kk</b>`;
+        transDiv.appendChild(totalDiv);
+
+        const btnDiscord = document.createElement('button');
+        btnDiscord.innerText = 'Copy all to Discord!';
+        btnDiscord.style.cssText = 'margin-top: 15px; width: 100%; padding: 10px; cursor:pointer;';
+        btnDiscord.addEventListener('click', () => {
+            const textoDiscord = transacoes.map(t => typeof t === 'string' ? t : t.texto).join('\n') +
+                `\n\nTotal profit: ${parseFloat(pt.totalBalance || 0).toFixed(2)}kk~ which is: ${parseFloat(pt.media || 0).toFixed(2)}kk~ for each player.`;
+            navigator.clipboard.writeText(textoDiscord);
+            alert('Copiado!');
+        });
+        transDiv.appendChild(btnDiscord);
+
+        corpo.appendChild(transDiv);
+    }
+
+    const acoesDiv = document.createElement('div');
+    acoesDiv.style.cssText = 'margin-top:15px; text-align:right;';
+    acoesDiv.innerHTML = `<button onclick="removerPtHunt('${pt.id}')" style="background:#991b1b; color:white; border:none; padding:6px 14px; border-radius:4px; cursor:pointer;">Excluir</button>`;
+    corpo.appendChild(acoesDiv);
+
+    card.appendChild(header);
+    card.appendChild(corpo);
+    return card;
+}
+
+function extrairComandoDoTexto(texto) {
+    const match = texto.match(/Bank:\s*(.+)\)\s*$/);
+    return match ? match[1] : texto;
+}
+
+function removerPtHunt(ptHuntId) {
+    if (confirm("Tem certeza que deseja apagar esta Party Hunt do histórico?")) {
+        database.ref(`users/${usuarioAtualUid}/ptHunts/${ptHuntId}`).remove()
+            .catch((erro) => {
+                alert("Erro ao remover: " + erro.message);
+            });
+    }
 }
 
 function atualizarTabelaDrops() {
