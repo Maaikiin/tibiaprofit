@@ -60,23 +60,23 @@
 </div>
 </div>
 
-        <!-- Cards de Totais Gerais -->
+        <!-- Cards do Mês Atual (acompanhamento em tempo real) -->
         <div class="cards-resumo">
             <div class="card">
-                <h3>Total Anual Liquid Profit</h3>
-                <p id="totalProfit">0.00 kk</p>
+                <h3>Profit Líquido</h3>
+                <p id="totalProfitMes">0.00 kk</p>
             </div>
             <div class="card">
-                <h3>Total Profit Hunt</h3>
-                <p id="totalProfitHunt">0.00 kk</p>
+                <h3>Profit Hunt</h3>
+                <p id="totalProfitHuntMes">0.00 kk</p>
             </div>
             <div class="card">
-                <h3>Total Drops</h3>
-                <p id="totalDropsValue">0.00 kk</p>
+                <h3>Drops</h3>
+                <p id="totalDropsMes">0.00 kk</p>
             </div>
             <div class="card">
-                <h3>Total Compras</h3>
-                <p id="totalComprasValue">0.00 kk</p>
+                <h3>Compras</h3>
+                <p id="totalComprasMes">0.00 kk</p>
             </div>
         </div>
 
@@ -86,7 +86,7 @@
             <button class="tab-btn" data-tab="pthunts">Histórico de PT Hunt</button>
             <button class="tab-btn" data-tab="drops">Lançar Drops Raros</button>
             <button class="tab-btn" data-tab="compras">Lançar Gastos/Compras</button>
-            <button class="tab-btn" data-tab="resumo">Resumo Mensal</button>
+            <button class="tab-btn" data-tab="resumo">Resumo</button>
         </div>
 
         <!-- ABA 1: CALCULADORA -->
@@ -154,6 +154,25 @@
 
         <!-- ABA 4: RESUMO E GRÁFICOS -->
         <div id="tab-resumo" class="tab-content">
+            <div class="cards-resumo" style="margin-bottom: 25px;">
+                <div class="card">
+                    <h3>Total Anual Liquid Profit</h3>
+                    <p id="totalProfit">0.00 kk</p>
+                </div>
+                <div class="card">
+                    <h3>Total Profit Hunt</h3>
+                    <p id="totalProfitHunt">0.00 kk</p>
+                </div>
+                <div class="card">
+                    <h3>Total Drops</h3>
+                    <p id="totalDropsValue">0.00 kk</p>
+                </div>
+                <div class="card">
+                    <h3>Total Compras</h3>
+                    <p id="totalComprasValue">0.00 kk</p>
+                </div>
+            </div>
+
             <h3>Balanço Geral do Ano (clique num mês para ver o dia a dia)</h3>
             <table>
                 <thead>
@@ -179,6 +198,25 @@
                     <canvas id="chartDiario"></canvas>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal de Patch Note (aparece 1x por conta a cada atualização) -->
+    <div id="modalPatchNote" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+        <div style="background: #15181f; border: 1px solid #222530; border-radius: 12px; max-width: 480px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 25px; box-shadow: 0 20px 40px rgba(0,0,0,0.7);">
+            <h2 style="color: #00ff66; font-family: 'Cinzel', serif; margin-bottom: 15px; text-align: center;">🛡️ Novidades do Tibia Profit 🛡️</h2>
+
+            <div style="color: #e2e8f0; font-size: 0.9rem; line-height: 1.7;">
+                <p style="color: #94a3b8; font-weight: 700; margin-bottom: 5px;">✨ Novidades</p>
+                <p>📆 Os cards do topo agora mostram o acompanhamento do <b>mês atual</b> (Profit Líquido, Profit Hunt, Drops e Compras) — reinicia sozinho todo mês</p>
+                <p>📊 Os totais anuais foram movidos pra dentro da aba <b>"Resumo"</b></p>
+
+                <p style="color: #94a3b8; font-weight: 700; margin-top: 15px; margin-bottom: 5px;">🔧 Ajustes</p>
+                <p>✏️ Aba "Resumo Mensal" renomeada pra só <b>"Resumo"</b></p>
+                <p>🧹 Nomes dos cards do topo simplificados</p>
+            </div>
+
+            <button id="btnFecharPatchNote" class="dash-btn" style="width: 100%; margin-top: 20px; background: #00ff66; color: #000;">Entendi!</button>
         </div>
     </div>
 

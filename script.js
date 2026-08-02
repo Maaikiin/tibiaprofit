@@ -1,4 +1,7 @@
 let charAtual = "Geral";
+
+// Muda esse valor toda vez que quiser que o modal de novidades apareça de novo pra todo mundo
+const VERSAO_ATUAL_PATCH = "2026-08-cards-mes-atual";
 // ==========================================================================
 // CONFIGURAÇÃO DO FIREBASE
 // ==========================================================================
@@ -84,6 +87,7 @@ function carregarDadosDoUsuario() {
 
     carregarInfoChar();
     carregarBoostados();
+    verificarPatchNote();
 
     const refHunts = database.ref(`users/${usuarioAtualUid}/hunts`);
     const refDrops = database.ref(`users/${usuarioAtualUid}/drops`);
@@ -786,8 +790,14 @@ function atualizarResumoMensalETotais() {
     let totalDropsAnual = 0;
     let totalComprasAnual = 0;
 
+    let totalProfitMesAtual = 0;
+    let totalProfitHuntMesAtual = 0;
+    let totalDropsMesAtual = 0;
+    let totalComprasMesAtual = 0;
+
     const resumoMensalEstrutura = {};
     const mesesOrdenados = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const nomeMesAtual = mesesOrdenados[new Date().getMonth()];
 
     mesesOrdenados.forEach(m => {
         resumoMensalEstrutura[m] = { profitTotal: 0 };
@@ -798,6 +808,10 @@ function atualizarResumoMensalETotais() {
         const p = parseFloat(hunt.profitReal || 0);
         totalProfitAnual += p;
         totalProfitHuntAnual += p;
+        if (hunt.mes === nomeMesAtual) {
+            totalProfitMesAtual += p;
+            totalProfitHuntMesAtual += p;
+        }
         if (resumoMensalEstrutura[hunt.mes]) {
             resumoMensalEstrutura[hunt.mes].profitTotal += p;
         }
@@ -808,6 +822,10 @@ function atualizarResumoMensalETotais() {
         const v = parseFloat(drop.valor || 0);
         totalDropsAnual += v;
         totalProfitAnual += v;
+        if (drop.mes === nomeMesAtual) {
+            totalDropsMesAtual += v;
+            totalProfitMesAtual += v;
+        }
         if (resumoMensalEstrutura[drop.mes]) {
             resumoMensalEstrutura[drop.mes].profitTotal += v;
         }
@@ -820,6 +838,11 @@ function atualizarResumoMensalETotais() {
         
         // Subtraímos do total anual
         totalProfitAnual -= v;
+
+        if (compra.mes === nomeMesAtual) {
+            totalComprasMesAtual += v;
+            totalProfitMesAtual -= v;
+        }
         
         // Subtraímos do mês correspondente
         if (resumoMensalEstrutura[compra.mes]) {
@@ -827,7 +850,17 @@ function atualizarResumoMensalETotais() {
         }
     });
 
-    // Atualiza elementos de texto
+    // Atualiza os cards do mês atual (topo do dashboard — acompanhamento em tempo real)
+    if (document.getElementById('totalProfitMes')) {
+        const elProfitMes = document.getElementById('totalProfitMes');
+        elProfitMes.innerText = `${totalProfitMesAtual.toFixed(2)} kk`;
+        elProfitMes.style.color = totalProfitMesAtual >= 0 ? '#00ff66' : '#ff3333';
+    }
+    if (document.getElementById('totalProfitHuntMes')) document.getElementById('totalProfitHuntMes').innerText = `${totalProfitHuntMesAtual.toFixed(2)} kk`;
+    if (document.getElementById('totalDropsMes')) document.getElementById('totalDropsMes').innerText = `${totalDropsMesAtual.toFixed(2)} kk`;
+    if (document.getElementById('totalComprasMes')) document.getElementById('totalComprasMes').innerText = `${totalComprasMesAtual.toFixed(2)} kk`;
+
+    // Atualiza os cards anuais (dentro da aba Resumo Mensal)
     if (document.getElementById('totalProfitHunt')) document.getElementById('totalProfitHunt').innerText = `${totalProfitHuntAnual.toFixed(2)} kk`;
     if (document.getElementById('totalProfit')) document.getElementById('totalProfit').innerText = `${totalProfitAnual.toFixed(2)} kk`;
     if (document.getElementById('totalDropsValue')) document.getElementById('totalDropsValue').innerText = `${totalDropsAnual.toFixed(2)} kk`;
@@ -1144,6 +1177,35 @@ async function carregarBoostados() {
             console.error('Erro ao carregar boss boostado:', e);
         }
     }
+}
+
+// ==========================================================================
+// MODAL DE PATCH NOTE (aparece 1x por conta, quando a versão muda)
+// ==========================================================================
+function verificarPatchNote() {
+    database.ref(`users/${usuarioAtualUid}/config/ultimoPatchVisto`).once('value')
+        .then((snapshot) => {
+            const ultimoVisto = snapshot.val();
+            if (ultimoVisto === VERSAO_ATUAL_PATCH) return; // já viu essa versão
+
+            const modal = document.getElementById('modalPatchNote');
+            if (modal) modal.style.display = 'flex';
+        })
+        .catch((erro) => console.error('Erro ao checar patch note:', erro));
+}
+
+const btnFecharPatchNote = document.getElementById('btnFecharPatchNote');
+if (btnFecharPatchNote) {
+    btnFecharPatchNote.addEventListener('click', () => {
+        const modal = document.getElementById('modalPatchNote');
+        if (modal) modal.style.display = 'none';
+
+        if (usuarioAtualUid) {
+            database.ref(`users/${usuarioAtualUid}/config`).update({
+                ultimoPatchVisto: VERSAO_ATUAL_PATCH
+            });
+        }
+    });
 }
 
 async function carregarInfoChar() {

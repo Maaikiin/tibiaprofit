@@ -240,6 +240,15 @@ body {
 #totalComprasValue { 
     color: #94a3b8 !important; 
 }
+#totalProfitHuntMes {
+    color: #ffffff !important;
+}
+#totalDropsMes {
+    color: #cbd5e1 !important;
+}
+#totalComprasMes {
+    color: #94a3b8 !important;
+}
 
 /* Abas de Navegação */
 .tabs {
