@@ -1,7 +1,7 @@
 let charAtual = "Geral";
 
 // Muda esse valor toda vez que quiser que o modal de novidades apareça de novo pra todo mundo
-const VERSAO_ATUAL_PATCH = "2026-08-cards-mes-atual";
+const VERSAO_ATUAL_PATCH = "2026-08-fix-balance-negativo";
 // ==========================================================================
 // CONFIGURAÇÃO DO FIREBASE
 // ==========================================================================
@@ -232,7 +232,7 @@ if (btnCalcular) {
                     playerAtual = linha.trim().replace(/\s*\([^)]*\)\s*$/, '');
                 }
                 if (playerAtual && linha.includes("Balance:")) {
-                    const balMatch = linha.match(/Balance:\s*([\d,]+)/);
+                    const balMatch = linha.match(/Balance:\s*([\d,\-]+)/);
                     if (balMatch) {
                         const valor = limparNumeroTibia(balMatch[1]) / 1000000;
                         jogadores.push({ nome: playerAtual, balance: valor });
