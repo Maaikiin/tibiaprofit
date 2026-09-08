@@ -1,7 +1,7 @@
 let charAtual = "Geral";
 
 // Muda esse valor toda vez que quiser que o modal de novidades apareça de novo pra todo mundo
-const VERSAO_ATUAL_PATCH = "2026-08-fix-balance-negativo";
+const VERSAO_ATUAL_PATCH = "2026-09-fix-bloqueio-google";
 // ==========================================================================
 // CONFIGURAÇÃO DO FIREBASE
 // ==========================================================================

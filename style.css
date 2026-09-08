@@ -128,6 +128,25 @@ body {
     font-weight: bold;
 }
 
+.disclaimer-afiliacao {
+    width: 100%;
+    max-width: 520px;
+    background: rgba(15, 13, 11, 0.55);
+    border: 1px solid rgba(180, 130, 60, 0.4);
+    border-radius: 8px;
+    color: #f5eae0;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    text-align: center;
+    padding: 10px 16px;
+    margin: 6px 0 14px;
+}
+
+.disclaimer-afiliacao strong {
+    color: #fde047;
+}
+
 /* ==========================================================================
    ESTILO DA TELA DO DASHBOARD
    ========================================================================== */
