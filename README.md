@@ -27,6 +27,14 @@ Um rastreador de profit para jogadores de **Tibia** — registre suas hunts (sol
 - Gráfico de profit mês a mês
 - **Clique em qualquer mês** (na tabela ou no gráfico) pra ver o acompanhamento **dia a dia** daquele mês
 
+### ⭐ Experiência (XP)
+- **Rastreamento automático**: o XP total do personagem é lido das highscores de Experience (TibiaData) e o ganho diário é a diferença entre duas leituras — sem colar log. Só funciona para personagens no **top 1000 do mundo**
+- Complemento opcional com o **XP Gain** do log do Session Analyser (lido sozinho ao calcular a hunt) e lançamento manual de XP
+- Cards de XP do último dia, XP do mês, XP/h médio (logs) e projeção do mês
+- Estatísticas: XP total, quanto falta pro próximo level (e previsão), melhor dia, média por dia ativo, variação vs. mês anterior
+- Gráficos de XP por dia, XP por mês (clique para detalhar) e **evolução de nível**
+- Opcional: `functions/` tem uma Cloud Function agendada que coleta o XP todo dia mesmo sem abrir o site (requer plano Blaze do Firebase)
+
 ### 🐉 Informações ao vivo (TibiaData API)
 - Dados do personagem cadastrado: level, vocação, mundo, HP/Mana/Cap estimados e faixa de Shared XP
 - **Criatura Boostada** e **Boss Boostado** do dia, direto na barra superior

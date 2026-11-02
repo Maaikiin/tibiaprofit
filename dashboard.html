@@ -86,6 +86,7 @@
             <button class="tab-btn" data-tab="pthunts">Histórico de PT Hunt</button>
             <button class="tab-btn" data-tab="drops">Lançar Drops Raros</button>
             <button class="tab-btn" data-tab="compras">Lançar Gastos/Compras</button>
+            <button class="tab-btn" data-tab="xp">Experiência</button>
             <button class="tab-btn" data-tab="resumo">Resumo</button>
         </div>
 
@@ -152,6 +153,77 @@
             <div id="corpoCompras"></div>
         </div>
 
+        <!-- ABA XP: EXPERIÊNCIA -->
+        <div id="tab-xp" class="tab-content">
+            <div class="xp-toolbar">
+                <label for="xpMesSelect">Mês:</label>
+                <select id="xpMesSelect"></select>
+                <span id="xpCharAviso" class="xp-note"></span>
+            </div>
+            <div id="xpStatusAuto" class="xp-status">⏳ Consultando as highscores do Tibia...</div>
+
+            <div class="cards-resumo">
+                <div class="card">
+                    <h3 id="xpHojeTitulo">XP no Último Dia</h3>
+                    <p id="xpHoje">0</p>
+                </div>
+                <div class="card">
+                    <h3 id="xpMesTitulo">XP no Mês</h3>
+                    <p id="xpMes">0</p>
+                </div>
+                <div class="card">
+                    <h3>XP/h Médio</h3>
+                    <p id="xpPorHora">--</p>
+                </div>
+                <div class="card">
+                    <h3 id="xpCardExtraTitulo">Projeção do Mês</h3>
+                    <p id="xpCardExtra">--</p>
+                </div>
+            </div>
+
+            <div id="xpTiles" class="xp-tiles"></div>
+
+            <h3 id="xpTituloDiario">XP por Dia</h3>
+            <div class="charts-container">
+                <div class="chart-wrapper"><canvas id="chartXpDiario"></canvas></div>
+            </div>
+
+            <h3 style="margin-top: 25px;">XP por Mês <span class="xp-note">(clique numa barra para ver o dia a dia)</span></h3>
+            <div class="charts-container">
+                <div class="chart-wrapper"><canvas id="chartXpMensal"></canvas></div>
+            </div>
+
+            <h3 style="margin-top: 25px;">Evolução de Nível</h3>
+            <p id="xpNivelAviso" class="xp-note"></p>
+            <div class="charts-container">
+                <div class="chart-wrapper"><canvas id="chartNivel"></canvas></div>
+            </div>
+
+            <h3 style="margin-top: 25px;">Histórico automático (highscores)</h3>
+            <div id="corpoXpAuto"></div>
+
+            <h3 style="margin-top: 25px;">Lançar XP manualmente</h3>
+            <p class="xp-note" style="margin-bottom: 12px;">O XP é rastreado automaticamente pelas highscores. Use este formulário (ou cole o log na calculadora) só para registrar hunts que o rastreio não cobre, como o dia de hoje ou um personagem fora do top 1000.</p>
+            <div class="grid-inputs">
+                <div class="input-box">
+                    <label for="xpManualValor">XP ganha:</label>
+                    <input type="text" id="xpManualValor" inputmode="numeric" placeholder="Ex: 1250000">
+                </div>
+                <div class="input-box">
+                    <label for="xpManualDuracao">Duração da hunt (min) — opcional:</label>
+                    <input type="number" id="xpManualDuracao" min="0" placeholder="Ex: 135">
+                </div>
+                <div class="input-box">
+                    <label for="xpManualData">Data — opcional (padrão: hoje):</label>
+                    <input type="date" id="xpManualData">
+                </div>
+            </div>
+            <button id="btnLancarXp" class="dash-btn">Registrar XP</button>
+
+            <h3 style="margin-top: 25px;">Histórico de XP (logs e lançamentos manuais)</h3>
+            <div id="corpoXp"></div>
+        </div>
+
         <!-- ABA 4: RESUMO E GRÁFICOS -->
         <div id="tab-resumo" class="tab-content">
             <div class="cards-resumo" style="margin-bottom: 25px;">
@@ -207,10 +279,24 @@
             <h2 style="color: #00ff66; font-family: 'Cinzel', serif; margin-bottom: 15px; text-align: center;">🛡️ Novidades do Tibia Profit 🛡️</h2>
 
             <div style="color: #e2e8f0; font-size: 0.9rem; line-height: 1.7;">
-                <p style="color: #94a3b8; font-weight: 700; margin-bottom: 5px;">⚠️ Aviso: bloqueio do Google Chrome/Safe Browsing</p>
-                <p>Nos últimos dias, alguns navegadores mostraram um aviso de "site perigoso/enganoso" ao acessar o Tibia Profit. Pedimos desculpas pelo susto — <b>o site nunca foi hackeado nem teve nenhum vazamento de dados</b>, sua conta e seus dados estão seguros.</p>
-                <p style="margin-top: 8px;">O aviso aconteceu porque a tela de login usava os mesmos termos e visual muito parecidos com o login oficial do Tibia, e os sistemas automáticos do Google entenderam isso como uma possível tentativa de phishing.</p>
-                <p style="margin-top: 8px;">✅ Já corrigimos: deixamos claro na própria tela de login que o Tibia Profit é um projeto de fã sem vínculo com a CipSoft, e ajustamos os campos do formulário. Solicitamos a revisão ao Google e o bloqueio deve sumir em breve, se ainda não tiver sumido pra você.</p>
+                <p style="color: #facc15; font-weight: 700; margin-bottom: 5px;">⭐ Nova aba: Experiência</p>
+                <p>Agora você acompanha o ganho de XP do seu personagem <b>automaticamente, sem precisar colar log</b>.</p>
+                <ul style="margin: 8px 0 0 18px;">
+                    <li>XP ganha por dia e por mês, com gráficos (clique num mês para ver o dia a dia)</li>
+                    <li>XP total, rank no mundo, quanto falta pro próximo level e a previsão de quando você sobe</li>
+                    <li>Evolução do seu level ao longo do tempo</li>
+                    <li>Média por dia, melhor dia, projeção do mês e comparação com o mês anterior</li>
+                    <li>O XP dos logs do Session Analyser também é lido sozinho ao calcular a hunt (dá pra ver XP/h), e você pode lançar XP manualmente</li>
+                </ul>
+
+                <p style="color: #94a3b8; font-weight: 700; margin: 14px 0 5px;">ℹ️ Bom saber</p>
+                <ul style="margin: 0 0 0 18px;">
+                    <li>O rastreamento automático usa as highscores do Tibia, então só funciona para personagens no <b>top 1000 de Experience do mundo</b>. Fora disso, use o log ou o lançamento manual.</li>
+                    <li>As highscores atualizam cerca de 1x por dia: o ganho de ontem aparece hoje. Se o site ficar uns dias sem ser aberto, o ganho aparece como período acumulado.</li>
+                </ul>
+
+                <p style="color: #94a3b8; font-weight: 700; margin: 14px 0 5px;">🎨 Telas de login e cadastro</p>
+                <p>Layout mais limpo, e o aviso de que o Tibia Profit é um projeto de fã (sem vínculo com a CipSoft) agora fica logo abaixo do formulário.</p>
             </div>
 
             <button id="btnFecharPatchNote" class="dash-btn" style="width: 100%; margin-top: 20px; background: #00ff66; color: #000;">Entendi!</button>

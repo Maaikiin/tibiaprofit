@@ -1,7 +1,7 @@
 let charAtual = "Geral";
 
 // Muda esse valor toda vez que quiser que o modal de novidades apareça de novo pra todo mundo
-const VERSAO_ATUAL_PATCH = "2026-09-fix-bloqueio-google";
+const VERSAO_ATUAL_PATCH = "2026-11-experiencia-xp";
 // ==========================================================================
 // CONFIGURAÇÃO DO FIREBASE
 // ==========================================================================
@@ -76,6 +76,10 @@ tabs.forEach(tab => {
         if (targetTab === 'resumo') {
             atualizarResumoMensalETotais();
         }
+
+        if (targetTab === 'xp') {
+            atualizarAbaXp();
+        }
     });
 });
 
@@ -88,6 +92,7 @@ function carregarDadosDoUsuario() {
     carregarInfoChar();
     carregarBoostados();
     verificarPatchNote();
+    iniciarListenersXp();
 
     const refHunts = database.ref(`users/${usuarioAtualUid}/hunts`);
     const refDrops = database.ref(`users/${usuarioAtualUid}/drops`);
@@ -215,6 +220,7 @@ if (btnCalcular) {
             });
 
             const balanceOriginal = valorBalance / 1000000;
+            salvarXpDoLog(textoLog);
 
             salvarHunt(balanceOriginal, 0, balanceOriginal, () => {
                 document.getElementById('logInput').value = '';
@@ -289,6 +295,7 @@ if (btnCalcular) {
             resultadoDiv.innerHTML = html;
 
             document.getElementById('btnEnviarPt').addEventListener('click', () => {
+                salvarXpDoLog(textoLog);
                 salvarHunt(media, 0, media, () => {
                     salvarPtHunt(jogadores, listaTransacoes, totalBalance, media);
                     document.getElementById('logInput').value = '';
@@ -1226,6 +1233,7 @@ async function carregarInfoChar() {
         }
 
         if (!config || !config.nomeChar) return;
+        nomeCharAtual = config.nomeChar;
 
         try {
             const res = await fetch(`https://api.tibiadata.com/v4/character/${config.nomeChar}`);
@@ -1271,6 +1279,9 @@ async function carregarInfoChar() {
                 else if (voc.includes("Monk")) imgUrl = vocImages.Monk;
 
                 // Preenchimento dos Elementos
+                levelAtualChar = lvl;
+                registrarNivelDoDia(config.nomeChar, lvl);
+                rastrearXpAutomatico(config.nomeChar, c.world, lvl);
                 document.getElementById('displayNomeChar').innerText = config.nomeChar;
                 document.getElementById('displayDetalhesChar').innerText = `Lvl: ${lvl} | ${voc} | ${c.world}`;
                 document.getElementById('statVida').innerText = hp;
@@ -1288,5 +1299,692 @@ async function carregarInfoChar() {
                 }
             }
         } catch (e) { console.error("Erro ao carregar char:", e); }
+    });
+}
+
+// ==========================================================================
+// EXPERIÊNCIA (XP) — rastreamento automático + acompanhamento diário/mensal
+// ==========================================================================
+// Fonte automática: highscores de Experience do Tibia (via TibiaData).
+// Só aparecem personagens no top 1000 do mundo. Fora disso, vale o XP dos
+// logs do Session Analyser / lançamento manual.
+let todosOsXp = [];
+let historicoNivel = [];
+let historicoSnapshots = [];
+let nomeCharAtual = null;
+let levelAtualChar = null;
+let mesesXpExpandidos = new Set();
+let mesesXpAutoExpandidos = new Set();
+let xpMesSelecionado = null; // formato "mm/aaaa"
+let xpRastreio = { estado: 'aguardando', mensagem: '' };
+let graficoXpDiarioInstancia = null;
+let graficoXpMensalInstancia = null;
+let graficoNivelInstancia = null;
+
+const MESES_NOMES_XP = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const MESES_CURTOS_XP = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+function xpTabAtiva() {
+    const t = document.getElementById('tab-xp');
+    return !!(t && t.classList.contains('active'));
+}
+
+function parseNumeroInteiro(str) {
+    if (!str) return 0;
+    return parseInt(String(str).replace(/[^\d-]/g, ''), 10) || 0;
+}
+
+// ---------- datas ----------
+// O "dia do Tibia" começa no server save (10:00 no horário da Alemanha).
+function chaveDiaTibia(data) {
+    const base = data || new Date();
+    const deslocada = new Date(base.getTime() - 10 * 3600 * 1000);
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(deslocada); // aaaa-mm-dd
+}
+function chaveParaData(chave) { const [a, m, d] = chave.split('-'); return `${d}/${m}/${a}`; }
+function addDiasChave(chave, n) {
+    const [a, m, d] = chave.split('-').map(Number);
+    return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10);
+}
+function diffDiasChaves(c1, c2) {
+    const [a1, m1, d1] = c1.split('-').map(Number);
+    const [a2, m2, d2] = c2.split('-').map(Number);
+    return Math.round((Date.UTC(a2, m2 - 1, d2) - Date.UTC(a1, m1 - 1, d1)) / 86400000);
+}
+function dataParaNumero(dataStr) {
+    const [d, m, a] = dataStr.split('/').map(Number);
+    return a * 10000 + m * 100 + d;
+}
+function chaveMesDeData(dataStr) {
+    const p = (dataStr || '').split('/');
+    return p.length === 3 ? `${p[1]}/${p[2]}` : null;
+}
+function rotuloMesXp(chave) {
+    const [m, a] = chave.split('/');
+    return `${MESES_CURTOS_XP[parseInt(m, 10) - 1]}/${a.slice(2)}`;
+}
+function nomeMesCompletoXp(chave) {
+    const [m, a] = chave.split('/');
+    return `${MESES_NOMES_XP[parseInt(m, 10) - 1]} ${a}`;
+}
+function ordenarChavesMes(chaves) {
+    return [...chaves].sort((a, b) => {
+        const [ma, aa] = a.split('/').map(Number);
+        const [mb, ab] = b.split('/').map(Number);
+        return aa !== ab ? aa - ab : ma - mb;
+    });
+}
+
+// ---------- formatação / fórmulas ----------
+function fmtXp(n) {
+    n = Math.round(n || 0);
+    return Math.abs(n) >= 1000000 ? (n / 1000000).toFixed(2) + ' kk' : n.toLocaleString('pt-BR');
+}
+function fmtDuracao(min) {
+    return `${Math.floor(min / 60)}h${String(Math.round(min % 60)).padStart(2, '0')}`;
+}
+// XP total necessário para ALCANÇAR o level L (fórmula do Tibia)
+function xpTotalDoNivel(level) {
+    return (50 / 3) * (Math.pow(level, 3) - 6 * Math.pow(level, 2) + 17 * level - 12);
+}
+function xpParaProximoNivel(level) {
+    return xpTotalDoNivel(level + 1) - xpTotalDoNivel(level);
+}
+
+// ---------- XP vindo do log do Session Analyser ----------
+function extrairXpDoLog(texto) {
+    const mXp = texto.match(/^[ \t]*XP Gain:[ \t]*(-?[\d.,\u00A0 ]+)/im);
+    const mRaw = texto.match(/^[ \t]*Raw XP Gain:[ \t]*(-?[\d.,\u00A0 ]+)/im);
+    const mSessao = texto.match(/Session:[ \t]*(\d+):(\d+)h/i);
+    return {
+        xp: mXp ? parseNumeroInteiro(mXp[1]) : 0,
+        rawXp: mRaw ? parseNumeroInteiro(mRaw[1]) : 0,
+        duracaoMin: mSessao ? parseInt(mSessao[1], 10) * 60 + parseInt(mSessao[2], 10) : 0
+    };
+}
+
+function salvarXpDoLog(textoLog) {
+    const info = extrairXpDoLog(textoLog);
+    if (info.xp > 0) {
+        salvarXp({ xp: info.xp, rawXp: info.rawXp, duracaoMin: info.duracaoMin, origem: 'log' });
+    }
+}
+
+function salvarXp({ xp, rawXp = 0, duracaoMin = 0, origem = 'log', dataObj = null }) {
+    if (!usuarioAtualUid || !xp || xp <= 0) return Promise.resolve();
+    const d = dataObj || new Date();
+    return database.ref(`users/${usuarioAtualUid}/xpGanhos`).push().set({
+        data: d.toLocaleDateString('pt-BR'),
+        mes: MESES_NOMES_XP[d.getMonth()],
+        xp: xp,
+        rawXp: rawXp,
+        duracaoMin: duracaoMin,
+        origem: origem,
+        nomeChar: nomeCharAtual || '',
+        timestamp: dataObj ? dataObj.getTime() : firebase.database.ServerValue.TIMESTAMP
+    }).catch((erro) => {
+        console.error('Erro ao salvar XP:', erro);
+        alert('Erro ao salvar o XP: ' + erro.message);
+    });
+}
+
+function removerXp(xpId) {
+    if (confirm('Tem certeza que deseja apagar este registro de XP?')) {
+        database.ref(`users/${usuarioAtualUid}/xpGanhos/${xpId}`).remove()
+            .catch((erro) => alert('Erro ao remover: ' + erro.message));
+    }
+}
+
+// ---------- listeners ----------
+function iniciarListenersXp() {
+    const lerLista = (snapshot) => {
+        const lista = [];
+        snapshot.forEach((c) => { lista.push({ id: c.key, ...c.val() }); });
+        return lista;
+    };
+    const aoMudar = () => { if (xpTabAtiva()) atualizarAbaXp(); };
+
+    database.ref(`users/${usuarioAtualUid}/xpGanhos`).on('value', (s) => { todosOsXp = lerLista(s); aoMudar(); });
+    database.ref(`users/${usuarioAtualUid}/levelHistory`).on('value', (s) => { historicoNivel = lerLista(s); aoMudar(); });
+    database.ref(`users/${usuarioAtualUid}/xpSnapshots`).on('value', (s) => { historicoSnapshots = lerLista(s); aoMudar(); });
+}
+
+// Guarda 1 registro de nível por dia (ao abrir o dashboard)
+function registrarNivelDoDia(nome, level) {
+    if (!usuarioAtualUid || !nome || !level) return;
+    const agora = new Date();
+    const chaveDia = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+    const ref = database.ref(`users/${usuarioAtualUid}/levelHistory/${chaveDia}`);
+    ref.once('value').then((snap) => {
+        const atual = snap.val();
+        if (atual && atual.level === level && atual.nome === nome) return;
+        return ref.set({
+            nome: nome, level: level,
+            data: agora.toLocaleDateString('pt-BR'),
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+    }).catch((e) => console.error('Erro ao registrar nível do dia:', e));
+}
+
+// ==========================================================================
+// RASTREAMENTO AUTOMÁTICO (highscores de Experience)
+// ==========================================================================
+// Procura o personagem nas páginas (50 por página, máx. 20) fazendo busca
+// binária pelo level, já que a lista é ordenada por XP.
+async function buscarNasHighscores(nome, level, getPagina, hint) {
+    const alvo = nome.trim().toLowerCase();
+    const cache = {};
+    let requisicoes = 0;
+
+    const pegar = async (p) => {
+        if (p < 1 || p > 20) return null;
+        if (!(p in cache)) { cache[p] = await getPagina(p); requisicoes++; }
+        return cache[p];
+    };
+    const procurar = (lista, p) => {
+        if (!lista) return null;
+        const e = lista.find(x => String(x.name).trim().toLowerCase() === alvo);
+        return e ? { xp: e.value, level: e.level, rank: e.rank, pagina: p } : null;
+    };
+
+    // 1) palpite: onde achamos da última vez (e páginas vizinhas)
+    if (hint) {
+        for (const p of [hint, hint - 1, hint + 1]) {
+            const r = procurar(await pegar(p), p);
+            if (r) return r;
+        }
+    }
+
+    // 2) busca binária pelo level
+    let lo = 1, hi = 20;
+    while (lo <= hi && requisicoes < 10) {
+        const p = Math.floor((lo + hi) / 2);
+        const lista = await pegar(p);
+        if (!lista || lista.length === 0) { hi = p - 1; continue; }
+        const r = procurar(lista, p);
+        if (r) return r;
+
+        const primeiro = lista[0].level;
+        const ultimo = lista[lista.length - 1].level;
+        if (level > primeiro) hi = p - 1;
+        else if (level < ultimo) lo = p + 1;
+        else {
+            // level dentro desta página: pode ser empate de level na divisa
+            for (const v of [p - 1, p + 1]) {
+                const r2 = procurar(await pegar(v), v);
+                if (r2) return r2;
+            }
+            return null;
+        }
+    }
+    return null;
+}
+
+async function rastrearXpAutomatico(nome, world, level) {
+    if (!usuarioAtualUid || !nome || !world) return;
+
+    const chaveTentativa = `xpTentativa:${usuarioAtualUid}:${nome}`;
+    const chaveHint = `xpPagina:${usuarioAtualUid}:${nome}`;
+    try {
+        const ult = JSON.parse(localStorage.getItem(chaveTentativa) || 'null');
+        // No máximo 1 consulta a cada 3h por personagem (as highscores não mudam toda hora)
+        if (ult && Date.now() - ult.ts < 3 * 3600 * 1000) {
+            xpRastreio = ult.resultado || xpRastreio;
+            return;
+        }
+    } catch (e) { /* localStorage indisponível: segue */ }
+
+    const getPagina = async (p) => {
+        const res = await fetch(`https://api.tibiadata.com/v4/highscores/${encodeURIComponent(world)}/experience/all/${p}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        return (json.highscores && json.highscores.highscore_list) || [];
+    };
+
+    try {
+        let hint = 0;
+        try { hint = parseInt(localStorage.getItem(chaveHint), 10) || 0; } catch (e) { /* ignora */ }
+
+        const r = await buscarNasHighscores(nome, level, getPagina, hint);
+        if (r) {
+            const chaveDia = chaveDiaTibia();
+            await database.ref(`users/${usuarioAtualUid}/xpSnapshots/${chaveDia}`).set({
+                nome: nome, world: world,
+                xp: r.xp, level: r.level, rank: r.rank, pagina: r.pagina,
+                data: chaveParaData(chaveDia),
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+            try { localStorage.setItem(chaveHint, String(r.pagina)); } catch (e) { /* ignora */ }
+            xpRastreio = { estado: 'ok', mensagem: '' };
+        } else {
+            xpRastreio = { estado: 'fora', mensagem: world };
+        }
+    } catch (e) {
+        console.error('Erro no rastreamento automático de XP:', e);
+        xpRastreio = { estado: 'erro', mensagem: e.message || 'erro desconhecido' };
+    }
+
+    try {
+        localStorage.setItem(chaveTentativa, JSON.stringify({ ts: Date.now(), resultado: xpRastreio }));
+    } catch (e) { /* ignora */ }
+
+    if (xpTabAtiva()) atualizarAbaXp();
+}
+
+// Ganho de cada "dia do Tibia" = diferença entre dois snapshots consecutivos
+function calcularGanhosAuto() {
+    const snaps = historicoSnapshots
+        .filter(s => (!nomeCharAtual || s.nome === nomeCharAtual) && typeof s.xp === 'number')
+        .sort((a, b) => (a.id < b.id ? -1 : 1));
+
+    const ganhos = [];
+    for (let i = 1; i < snaps.length; i++) {
+        const ant = snaps[i - 1];
+        const atu = snaps[i];
+        const diff = atu.xp - ant.xp;
+        if (diff <= 0) continue; // sem ganho (ou highscore ainda não atualizou)
+        const diaConcluido = addDiasChave(atu.id, -1);
+        ganhos.push({
+            data: chaveParaData(diaConcluido),
+            xp: diff,
+            total: atu.xp,
+            dias: diffDiasChaves(ant.id, atu.id) // >1 = período acumulado (dias sem abrir o site)
+        });
+    }
+    return ganhos;
+}
+
+// ---------- tela principal da aba ----------
+function xpDoChar() {
+    return todosOsXp.filter(e => !e.nomeChar || !nomeCharAtual || e.nomeChar === nomeCharAtual);
+}
+
+function atualizarAbaXp() {
+    const logs = xpDoChar();
+    const ganhosAuto = calcularGanhosAuto();
+    const hoje = new Date();
+    const mesAtualChave = `${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`;
+
+    // Volume por dia: o automático (highscores) manda; onde não há, usa o XP dos logs
+    const autoPorData = {};
+    ganhosAuto.forEach(g => { autoPorData[g.data] = (autoPorData[g.data] || 0) + g.xp; });
+    const volumePorData = Object.assign({}, autoPorData);
+    logs.forEach(e => {
+        if (e.data && autoPorData[e.data] === undefined) {
+            volumePorData[e.data] = (volumePorData[e.data] || 0) + (parseFloat(e.xp) || 0);
+        }
+    });
+
+    // Agrupa por mês
+    const porMes = {};
+    const garantirMes = (mk) => {
+        if (!porMes[mk]) porMes[mk] = { xp: 0, xpComDuracao: 0, min: 0, hunts: 0, diasSemRegistro: 0 };
+        return porMes[mk];
+    };
+    Object.entries(volumePorData).forEach(([d, xp]) => { const mk = chaveMesDeData(d); if (mk) garantirMes(mk).xp += xp; });
+    logs.forEach(e => {
+        const mk = chaveMesDeData(e.data);
+        if (!mk) return;
+        const m = garantirMes(mk);
+        const xp = parseFloat(e.xp) || 0;
+        const dur = parseFloat(e.duracaoMin) || 0;
+        m.hunts += 1;
+        if (dur > 0) { m.xpComDuracao += xp; m.min += dur; }
+    });
+    ganhosAuto.forEach(g => { if (g.dias > 1) { const mk = chaveMesDeData(g.data); if (mk) garantirMes(mk).diasSemRegistro += g.dias - 1; } });
+
+    // Seletor de mês
+    const chavesMeses = ordenarChavesMes(new Set([...Object.keys(porMes), mesAtualChave]));
+    if (!xpMesSelecionado || !chavesMeses.includes(xpMesSelecionado)) xpMesSelecionado = mesAtualChave;
+    const select = document.getElementById('xpMesSelect');
+    if (select) {
+        select.innerHTML = [...chavesMeses].reverse()
+            .map(k => `<option value="${k}">${nomeMesCompletoXp(k)}</option>`).join('');
+        select.value = xpMesSelecionado;
+    }
+
+    const aviso = document.getElementById('xpCharAviso');
+    if (aviso) aviso.innerText = nomeCharAtual ? `Personagem: ${nomeCharAtual}` : 'Cadastre seu personagem na engrenagem ⚙️';
+
+    // Dados do mês selecionado
+    const sel = xpMesSelecionado;
+    const [mSel, aSel] = sel.split('/').map(Number);
+    const diasNoMes = new Date(aSel, mSel, 0).getDate();
+    const porDia = {};
+    Object.entries(volumePorData).forEach(([d, v]) => { if (chaveMesDeData(d) === sel) porDia[d] = v; });
+    const logsMes = logs.filter(e => chaveMesDeData(e.data) === sel);
+
+    const resumoMes = porMes[sel] || { xp: 0, xpComDuracao: 0, min: 0, hunts: 0, diasSemRegistro: 0 };
+    const xpMes = resumoMes.xp;
+    const diasAtivos = Object.values(porDia).filter(v => v > 0).length;
+    const xpHoraMedio = resumoMes.min > 0 ? resumoMes.xpComDuracao / (resumoMes.min / 60) : 0;
+
+    let melhorDia = null;
+    Object.entries(porDia).forEach(([d, v]) => { if (!melhorDia || v > melhorDia.xp) melhorDia = { dia: d, xp: v }; });
+    let melhorHunt = null;
+    logsMes.forEach(e => { const v = parseFloat(e.xp) || 0; if (!melhorHunt || v > melhorHunt.xp) melhorHunt = { xp: v, data: e.data }; });
+
+    // Último dia com dado (em qualquer mês)
+    let ultimoDia = null;
+    Object.keys(volumePorData).forEach(d => { if (!ultimoDia || dataParaNumero(d) > dataParaNumero(ultimoDia)) ultimoDia = d; });
+
+    // Variação vs. mês anterior
+    const mesAnterior = mSel === 1 ? `12/${aSel - 1}` : `${String(mSel - 1).padStart(2, '0')}/${aSel}`;
+    const xpAnterior = porMes[mesAnterior] ? porMes[mesAnterior].xp : 0;
+    let textoVariacao = '--';
+    let corVariacao = '#94a3b8';
+    if (xpAnterior > 0) {
+        const v = ((xpMes - xpAnterior) / xpAnterior) * 100;
+        textoVariacao = `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
+        corVariacao = v >= 0 ? '#00ff66' : '#ff3333';
+    }
+
+    // Níveis
+    const eqNiveis = levelAtualChar ? xpMes / xpParaProximoNivel(levelAtualChar) : null;
+    const snapsMes = historicoNivel
+        .filter(h => (!nomeCharAtual || h.nome === nomeCharAtual) && chaveMesDeData(h.data) === sel)
+        .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    const niveisGanhos = snapsMes.length >= 2 ? snapsMes[snapsMes.length - 1].level - snapsMes[0].level : null;
+
+    // Último snapshot do personagem (XP total vindo das highscores)
+    const snapsChar = historicoSnapshots
+        .filter(s => (!nomeCharAtual || s.nome === nomeCharAtual) && typeof s.xp === 'number')
+        .sort((a, b) => (a.id < b.id ? -1 : 1));
+    const ultimoSnap = snapsChar.length ? snapsChar[snapsChar.length - 1] : null;
+
+    // Faltam X XP para o próximo level (+ previsão no ritmo dos últimos dias)
+    let textoFaltam = '--';
+    let textoPrevisao = '--';
+    if (ultimoSnap) {
+        let L = ultimoSnap.level || 8;
+        while (ultimoSnap.xp >= xpTotalDoNivel(L + 1)) L++;
+        while (L > 8 && ultimoSnap.xp < xpTotalDoNivel(L)) L--;
+        const faltam = xpTotalDoNivel(L + 1) - ultimoSnap.xp;
+        const pct = ((ultimoSnap.xp - xpTotalDoNivel(L)) / xpParaProximoNivel(L)) * 100;
+        textoFaltam = `${fmtXp(faltam)} <small>(${pct.toFixed(0)}% do lvl ${L})</small>`;
+
+        const recentes = Object.keys(volumePorData)
+            .sort((a, b) => dataParaNumero(b) - dataParaNumero(a)).slice(0, 7)
+            .map(d => volumePorData[d]).filter(v => v > 0);
+        if (recentes.length) {
+            const media = recentes.reduce((s, v) => s + v, 0) / recentes.length;
+            const dias = faltam / media;
+            textoPrevisao = dias < 1 ? 'menos de 1 dia' : `≈ ${Math.ceil(dias)} dia${Math.ceil(dias) > 1 ? 's' : ''}`;
+        }
+    }
+
+    // Faixa de status do rastreamento automático
+    const statusEl = document.getElementById('xpStatusAuto');
+    if (statusEl) {
+        let html;
+        if (ultimoSnap && xpRastreio.estado !== 'fora') {
+            html = `✅ <b>Rastreamento automático ativo.</b> XP total: <b>${ultimoSnap.xp.toLocaleString('pt-BR')}</b> · rank #${ultimoSnap.rank} em ${ultimoSnap.world} · última leitura: ${ultimoSnap.data}.`;
+            if (xpRastreio.estado === 'erro') html += ` <span style="color:#fbbf24;">(falha na última consulta: ${xpRastreio.mensagem})</span>`;
+        } else if (xpRastreio.estado === 'fora') {
+            html = `⚠️ <b>${nomeCharAtual || 'Seu personagem'}</b> não aparece no top 1000 de Experience de <b>${xpRastreio.mensagem}</b>, então o rastreamento automático não é possível. Os números abaixo usam só os logs / lançamentos manuais.`;
+        } else if (xpRastreio.estado === 'erro') {
+            html = `⚠️ Não consegui consultar as highscores agora (${xpRastreio.mensagem}). Tento de novo na próxima vez que você abrir o site.`;
+        } else {
+            html = '⏳ Consultando as highscores do Tibia...';
+        }
+        statusEl.innerHTML = html;
+    }
+
+    // Cards principais
+    const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.innerText = txt; };
+    setTxt('xpHojeTitulo', ultimoDia ? `XP em ${ultimoDia.slice(0, 5)} (último dia)` : 'XP no Último Dia');
+    setTxt('xpHoje', ultimoDia ? fmtXp(volumePorData[ultimoDia]) : '--');
+    setTxt('xpMesTitulo', `XP em ${nomeMesCompletoXp(sel)}`);
+    setTxt('xpMes', fmtXp(xpMes));
+    setTxt('xpPorHora', xpHoraMedio > 0 ? fmtXp(xpHoraMedio) + '/h' : '--');
+
+    if (sel === mesAtualChave) {
+        // projeção pelo ritmo até o último dia com dado
+        const ultimoNoMes = Object.keys(porDia).map(d => parseInt(d.slice(0, 2), 10)).sort((a, b) => b - a)[0];
+        setTxt('xpCardExtraTitulo', 'Projeção do Mês');
+        setTxt('xpCardExtra', xpMes > 0 && ultimoNoMes ? fmtXp((xpMes / ultimoNoMes) * diasNoMes) : '--');
+    } else {
+        setTxt('xpCardExtraTitulo', 'Melhor Dia');
+        setTxt('xpCardExtra', melhorDia ? fmtXp(melhorDia.xp) : '--');
+    }
+
+    // Estatísticas secundárias
+    const tiles = [
+        { t: 'XP total (highscores)', v: ultimoSnap ? ultimoSnap.xp.toLocaleString('pt-BR') : '--' },
+        { t: 'Faltam p/ o próximo level', v: textoFaltam },
+        { t: 'Previsão do próximo level', v: textoPrevisao },
+        { t: 'Melhor dia', v: melhorDia ? `${fmtXp(melhorDia.xp)} <small>(${melhorDia.dia.slice(0, 5)})</small>` : '--' },
+        { t: 'Média por dia ativo', v: diasAtivos ? fmtXp(xpMes / diasAtivos) : '--' },
+        { t: 'Dias com XP', v: `${diasAtivos} <small>/ ${diasNoMes}</small>` },
+        { t: 'Dias sem leitura (acumulados)', v: resumoMes.diasSemRegistro ? String(resumoMes.diasSemRegistro) : '0' },
+        { t: 'vs. mês anterior', v: `<span style="color:${corVariacao}">${textoVariacao}</span>` },
+        { t: 'Níveis ganhos (registrados)', v: niveisGanhos !== null ? `${niveisGanhos >= 0 ? '+' : ''}${niveisGanhos}` : '--' },
+        { t: 'Níveis ≈ (estimativa)', v: eqNiveis !== null && xpMes > 0 ? '≈ ' + eqNiveis.toFixed(2) : '--' },
+        { t: 'Hunts com log de XP', v: resumoMes.hunts || '0' },
+        { t: 'Melhor hunt (log)', v: melhorHunt ? `${fmtXp(melhorHunt.xp)} <small>(${melhorHunt.data.slice(0, 5)})</small>` : '--' },
+        { t: 'Horas hunteadas (logs)', v: resumoMes.min > 0 ? fmtDuracao(resumoMes.min) : '--' }
+    ];
+    const tilesEl = document.getElementById('xpTiles');
+    if (tilesEl) {
+        tilesEl.innerHTML = tiles.map(t => `<div class="xp-tile"><span class="xp-tile-titulo">${t.t}</span><span class="xp-tile-valor">${t.v}</span></div>`).join('');
+    }
+
+    // Gráficos
+    if (typeof Chart !== 'undefined') {
+        if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
+
+        const rotulosDias = [];
+        const valoresDias = [];
+        for (let d = 1; d <= diasNoMes; d++) {
+            const chaveDia = `${String(d).padStart(2, '0')}/${String(mSel).padStart(2, '0')}/${aSel}`;
+            rotulosDias.push(String(d).padStart(2, '0'));
+            valoresDias.push(porDia[chaveDia] || 0);
+        }
+        const tituloDiario = document.getElementById('xpTituloDiario');
+        if (tituloDiario) tituloDiario.innerText = `XP por Dia — ${nomeMesCompletoXp(sel)}`;
+        graficoXpDiarioInstancia = desenharBarrasXp('chartXpDiario', graficoXpDiarioInstancia, rotulosDias, valoresDias, '#facc15', null);
+
+        const chavesComDados = ordenarChavesMes(Object.keys(porMes).filter(k => porMes[k].xp > 0));
+        graficoXpMensalInstancia = desenharBarrasXp(
+            'chartXpMensal', graficoXpMensalInstancia,
+            chavesComDados.map(rotuloMesXp), chavesComDados.map(k => porMes[k].xp), '#a78bfa',
+            (indice) => { xpMesSelecionado = chavesComDados[indice]; atualizarAbaXp(); }
+        );
+
+        desenharEvolucaoNivel();
+    }
+
+    atualizarListaXpAuto(ganhosAuto);
+    atualizarListaXp();
+}
+
+function desenharBarrasXp(canvasId, instancia, rotulos, valores, cor, aoClicar) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || canvas.clientWidth === 0) return instancia;
+    if (instancia) instancia.destroy();
+
+    const max = Math.max(...valores, 0);
+    return new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: rotulos,
+            datasets: [{
+                label: 'XP',
+                data: valores,
+                backgroundColor: cor + '40',
+                borderColor: cor,
+                borderWidth: 2,
+                barPercentage: 0.7,
+                categoryPercentage: 0.85,
+                maxBarThickness: 34
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { top: 40, bottom: 10 } },
+            onClick: aoClicar ? (evento, elementos) => { if (elementos.length > 0) aoClicar(elementos[0].index); } : undefined,
+            onHover: aoClicar ? (evento, elementos) => { evento.native.target.style.cursor = elementos.length > 0 ? 'pointer' : 'default'; } : undefined,
+            scales: {
+                x: { ticks: { autoSkip: false, maxRotation: 0, minRotation: 0 } },
+                y: { beginAtZero: true, suggestedMax: max * 1.2, ticks: { callback: (v) => fmtXp(v) } }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (ctx) => ' ' + fmtXp(ctx.parsed.y) + ' XP' } },
+                datalabels: {
+                    display: (ctx) => ctx.dataset.data[ctx.dataIndex] !== 0,
+                    anchor: 'end',
+                    align: 'top',
+                    offset: 4,
+                    color: cor,
+                    font: { weight: 'bold', size: 10 },
+                    formatter: (v) => fmtXp(v)
+                }
+            }
+        }
+    });
+}
+
+function desenharEvolucaoNivel() {
+    const canvas = document.getElementById('chartNivel');
+    const aviso = document.getElementById('xpNivelAviso');
+    if (!canvas || canvas.clientWidth === 0) return;
+
+    // junta o registro diário de nível com os snapshots das highscores
+    const porData = {};
+    historicoNivel
+        .filter(h => !nomeCharAtual || h.nome === nomeCharAtual)
+        .forEach(h => { if (h.data) porData[h.data] = { data: h.data, level: h.level, timestamp: h.timestamp || 0 }; });
+    historicoSnapshots
+        .filter(s => !nomeCharAtual || s.nome === nomeCharAtual)
+        .forEach(s => { if (s.data && !porData[s.data]) porData[s.data] = { data: s.data, level: s.level, timestamp: s.timestamp || 0 }; });
+    const hist = Object.values(porData).sort((a, b) => dataParaNumero(a.data) - dataParaNumero(b.data));
+
+    if (aviso) {
+        aviso.innerText = hist.length < 2
+            ? 'O nível é registrado automaticamente 1x por dia quando você abre o dashboard. O gráfico aparece a partir do 2º dia.'
+            : '';
+    }
+    if (graficoNivelInstancia) { graficoNivelInstancia.destroy(); graficoNivelInstancia = null; }
+    if (hist.length < 1) return;
+
+    const niveis = hist.map(h => h.level);
+    graficoNivelInstancia = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: hist.map(h => h.data.slice(0, 5)),
+            datasets: [{
+                label: 'Level',
+                data: niveis,
+                borderColor: '#00ff66',
+                backgroundColor: 'rgba(0, 255, 102, 0.12)',
+                borderWidth: 2,
+                pointRadius: 4,
+                tension: 0.25,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { top: 20, bottom: 10 } },
+            scales: { y: { suggestedMin: Math.min(...niveis) - 1, suggestedMax: Math.max(...niveis) + 1, ticks: { precision: 0 } } },
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    display: (ctx) => ctx.dataIndex === 0 || ctx.dataIndex === niveis.length - 1 || niveis[ctx.dataIndex] !== niveis[ctx.dataIndex - 1],
+                    align: 'top',
+                    color: '#00ff66',
+                    font: { weight: 'bold' },
+                    formatter: (v) => v
+                }
+            }
+        }
+    });
+}
+
+function atualizarListaXpAuto(ganhosAuto) {
+    const itens = ganhosAuto.map(g => {
+        const [d, m, a] = g.data.split('/').map(Number);
+        return {
+            mes: MESES_NOMES_XP[m - 1],
+            timestamp: new Date(a, m - 1, d).getTime(),
+            data: g.data, xp: g.xp, total: g.total, dias: g.dias
+        };
+    });
+    renderizarAccordionMensal(
+        'corpoXpAuto',
+        itens,
+        mesesXpAutoExpandidos,
+        ['Dia', 'XP ganha', 'XP total', 'Período'],
+        (g) => `
+            <td>${g.data}</td>
+            <td style="color: #facc15; font-weight: bold;">${fmtXp(g.xp)}</td>
+            <td>${g.total.toLocaleString('pt-BR')}</td>
+            <td>${g.dias > 1 ? `<span style="color:#fbbf24;">acumulado de ${g.dias} dias</span>` : '1 dia'}</td>
+        `,
+        (lista) => lista.reduce((s, g) => s + g.xp, 0) / 1000000,
+        () => atualizarListaXpAuto(ganhosAuto),
+        'Ainda sem leituras automáticas. O primeiro ganho aparece a partir do 2º dia de registro.'
+    );
+}
+
+function atualizarListaXp() {
+    renderizarAccordionMensal(
+        'corpoXp',
+        xpDoChar(),
+        mesesXpExpandidos,
+        ['Data', 'XP', 'Duração', 'XP/h', 'Origem', 'Ações'],
+        (e) => `
+            <td>${e.data}</td>
+            <td style="color: #facc15; font-weight: bold;">${fmtXp(e.xp)}</td>
+            <td>${e.duracaoMin ? fmtDuracao(e.duracaoMin) : '--'}</td>
+            <td>${e.duracaoMin ? fmtXp(e.xp / (e.duracaoMin / 60)) : '--'}</td>
+            <td>${e.origem === 'manual' ? 'Manual' : 'Log'}</td>
+            <td>
+                <button onclick="removerXp('${e.id}')" style="background: #991b1b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Excluir</button>
+            </td>
+        `,
+        (itens) => itens.reduce((s, e) => s + (parseFloat(e.xp) || 0), 0) / 1000000,
+        atualizarListaXp,
+        'Nenhum log de XP registrado ainda.'
+    );
+}
+
+// ---------- eventos da aba ----------
+const xpMesSelectEl = document.getElementById('xpMesSelect');
+if (xpMesSelectEl) {
+    xpMesSelectEl.addEventListener('change', () => {
+        xpMesSelecionado = xpMesSelectEl.value;
+        atualizarAbaXp();
+    });
+}
+
+const btnLancarXp = document.getElementById('btnLancarXp');
+if (btnLancarXp) {
+    btnLancarXp.addEventListener('click', () => {
+        const xp = parseNumeroInteiro(document.getElementById('xpManualValor').value);
+        const duracao = parseInt(document.getElementById('xpManualDuracao').value, 10) || 0;
+        const dataStr = document.getElementById('xpManualData').value;
+
+        if (!xp || xp <= 0) {
+            alert('Digite quanto de XP você ganhou (ex: 1250000).');
+            return;
+        }
+
+        let dataObj = null;
+        if (dataStr) {
+            const [a, m, d] = dataStr.split('-').map(Number);
+            dataObj = new Date(a, m - 1, d, 12, 0, 0);
+        }
+
+        salvarXp({ xp: xp, duracaoMin: duracao, origem: 'manual', dataObj: dataObj }).then(() => {
+            document.getElementById('xpManualValor').value = '';
+            document.getElementById('xpManualDuracao').value = '';
+            document.getElementById('xpManualData').value = '';
+        });
     });
 }
